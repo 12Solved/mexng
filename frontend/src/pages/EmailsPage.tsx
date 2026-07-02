@@ -109,9 +109,17 @@ const EmailsPage = () => {
     {
       header: 'Subject',
       accessorKey: 'subject',
-      cell: ({ getValue }) => (
-        <span className="font-medium text-slate-800 dark:text-slate-100 truncate block">{getValue<string>()}</span>
-      ),
+      cell: ({ getValue }) => {
+        const subject = getValue<string>();
+        return (
+          <span 
+            title={subject}
+            className="font-medium text-slate-800 dark:text-slate-100 truncate block max-w-[320px]"
+          >
+            {subject}
+          </span>
+        );
+      }
     },
     {
       header: 'From',
