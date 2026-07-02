@@ -5,13 +5,15 @@ import type { ForeachFlowNode } from '../../types/workflowEditor';
 const ForEachNode = ({ data, selected }: NodeProps<ForeachFlowNode>) => {
   const colors = data.meta?.colors ?? FALLBACK_COLORS;
   const config = data.config as { collection?: string; item?: string };
+  const isDark = document.documentElement.classList.contains('dark');
+  
   return (
     <div
       className="rounded-xl w-full h-full box-border"
       style={{
-        border: `2px dashed ${selected ? '#111827' : colors.border}`,
-        background: 'rgba(139,92,246,0.04)',
-        boxShadow: selected ? '0 0 0 2px #111827' : undefined,
+        border: `2px dashed ${selected ? (isDark ? '#f1f5f9' : '#111827') : colors.border}`,
+        background: isDark ? 'rgba(139,92,246,0.08)' : 'rgba(139,92,246,0.04)',
+        boxShadow: selected ? `0 0 0 2px ${isDark ? '#f1f5f9' : '#111827'}` : undefined,
       }}
     >
       <NodeResizer
@@ -23,10 +25,15 @@ const ForEachNode = ({ data, selected }: NodeProps<ForeachFlowNode>) => {
       />
       <Handle type="target" position={Position.Top} />
       <div
-        className="flex items-center gap-2 px-3 py-1.5 rounded-t-[10px]"
-        style={{ background: colors.bg, borderBottom: `1px dashed ${colors.border}` }}
+        className="foreach-node flex items-center gap-2 px-3 py-1.5 rounded-t-[10px]"
+        style={{
+          '--step-border': colors.border,
+          '--step-bg': colors.bg,
+          '--step-text': colors.text,
+          borderBottom: '1px dashed',
+        } as React.CSSProperties}
       >
-        <span className="font-semibold text-[13px]" style={{ color: colors.text }}>For Each</span>
+        <span className="font-semibold text-[13px]">For Each</span>
         {config.collection && (
           <span className="text-[11px] text-gray-400">
             {config.collection}

@@ -6,16 +6,17 @@ const StepNode = ({ data, selected }: NodeProps<StepFlowNode>) => {
   const colors = data.meta?.colors ?? FALLBACK_COLORS;
   return (
     <div
-      className="rounded-lg min-w-[180px]"
+      className="step-node px-3 py-2 rounded-lg min-w-[150px] cursor-pointer"
       style={{
-        border: `2px solid ${selected ? '#111827' : colors.border}`,
-        background: colors.bg,
-        boxShadow: selected ? '0 0 0 2px #111827' : '0 2px 6px rgba(0,0,0,0.1)',
-      }}
+        '--step-border': colors.border,
+        '--step-bg': colors.bg,
+        '--step-text': colors.text,
+        border: `2px solid ${selected ? '#111827' : ''}`,
+        borderColor: selected ? (document.documentElement.classList.contains('dark') ? '#f1f5f9' : '#111827') : undefined,
+      } as React.CSSProperties}
     >
       <Handle type="target" position={Position.Top} />
-      <div className="px-3 py-2">
-        <div className="font-semibold text-[13px]" style={{ color: colors.text }}>
+        <div className="font-semibold text-[13px]">
           {data.meta?.label ?? data.stepType}
         </div>
         {data.meta?.docstring && (
@@ -36,7 +37,6 @@ const StepNode = ({ data, selected }: NodeProps<StepFlowNode>) => {
             {String(data.user_comment).slice(0, 80)}{String(data.user_comment).length > 80 ? '…' : ''}
           </div>
         )}
-      </div>
       <Handle type="source" position={Position.Bottom} />
     </div>
   );

@@ -58,7 +58,10 @@ const ConfigPanel = ({ node, stepsMeta, nodes, edges, contextVars, onChange, onC
 
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-800">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: colors.border }} />
+          <div
+            className="step-indicator w-2 h-2 rounded-full flex-shrink-0"
+            style={{ '--step-border': colors.border } as React.CSSProperties}
+          />
           <div>
             <div className="font-semibold text-sm text-gray-900 dark:text-slate-100">{meta?.label ?? node.data.stepType}</div>
             <div className="text-[10px] text-gray-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">{meta?.category}</div>

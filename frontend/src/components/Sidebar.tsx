@@ -44,8 +44,13 @@ const Sidebar = ({ stepsMeta, loading }: SidebarProps) => {
                 key={step.type}
                 draggable
                 onDragStart={e => onDragStart(e, step)}
-                className="mx-2.5 my-1 px-2.5 py-2 rounded-md cursor-grab text-xs font-medium select-none hover:opacity-80 transition-opacity"
-                style={{ border: `1.5px solid ${colors.border}`, background: colors.bg, color: colors.text }}
+                className="step-badge mx-2.5 my-1 px-2.5 py-2 rounded-md cursor-grab text-xs font-medium select-none hover:opacity-80 transition-opacity"
+                style={{ 
+                  '--step-border': colors.border,
+                  '--step-bg': colors.bg,
+                  '--step-text': colors.text,
+                  border: '1.5px solid',
+                } as React.CSSProperties}
               >
                 {step.label}
               </div>

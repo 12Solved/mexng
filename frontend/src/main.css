@@ -59,3 +59,34 @@ body {
   --rqb-border-color: oklch(0.446 0.043 257.281);
   --rqb-branch-color: oklch(0.446 0.043 257.281);
 }
+
+/* Step category colors - light mode uses backend values as-is */
+.step-badge,
+.step-node,
+.foreach-node {
+  border-color: var(--step-border);
+  background-color: var(--step-bg);
+  color: var(--step-text);
+}
+
+/* Step category colors - dark mode derives from border hue */
+.dark .step-badge {
+  background-color: color-mix(in srgb, var(--step-border) 15%, black);
+  color: color-mix(in srgb, var(--step-border) 65%, white);
+}
+
+.dark .step-node {
+  background-color: color-mix(in srgb, var(--step-border) 12%, #0f172a);
+  color: color-mix(in srgb, var(--step-border) 70%, white);
+}
+
+.dark .foreach-node {
+  background-color: color-mix(in srgb, var(--step-border) 10%, #0f172a);
+  border-color: color-mix(in srgb, var(--step-border) 50%, #475569);
+  color: color-mix(in srgb, var(--step-border) 70%, white);
+}
+
+/* Indicator dot */
+.step-indicator {
+  background: var(--step-border);
+}
