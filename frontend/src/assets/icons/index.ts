@@ -1,0 +1,8 @@
+export { default as InfoIcon } from './InfoIcon';
+export { default as DownloadIcon } from './DownloadIcon';
+export { default as SpinnerIcon } from './SpinnerIcon';
+export { default as CheckIcon } from './CheckIcon';
+export { default as MoonIcon } from './MoonIcon';
+export { default as SunIcon } from './SunIcon';
+export { default as LinkIcon } from './LinkIcon';
+export { default as UploadIcon } from './UploadIcon';

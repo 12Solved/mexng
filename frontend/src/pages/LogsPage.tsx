@@ -4,6 +4,7 @@ import type { Log, LogLevel } from '../types/log';
 import { getAllLogFilters, getAllLogs } from '../services/logServices';
 import Pagination from '../components/Pagination';
 import { Link, useSearchParams } from 'react-router-dom';
+import { LinkIcon } from '../assets/icons';
 
 export function mergeLogsSearchQuery(existing: string | null | undefined, tag: string): string {
   const t = tag.trim()
@@ -61,16 +62,6 @@ const CHIP_SPLIT_ICON =
   'px-1 py-0.5 flex items-center text-slate-400 dark:text-slate-500 ' +
   'hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:text-blue-600 dark:hover:text-blue-300 ' +
   'border-l border-slate-300 dark:border-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-inset';
-
-function LinkIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 2H2a1 1 0 00-1 1v7a1 1 0 001 1h7a1 1 0 001-1V7" />
-      <path d="M8 1h3v3" />
-      <path d="M11 1L6 6" />
-    </svg>
-  );
-}
 
 function LogIdChip({ label, val, qContext }: { label: string; val: number; qContext: string }) {
   const text = `${label}:#${val}`;

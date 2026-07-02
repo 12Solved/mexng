@@ -1,8 +1,7 @@
 import { useState } from "react"
 import type { Attachment } from '../types/email';
 import { downloadAttachment, downloadAllAttachments } from "../services/emailServices"
-import DownloadIcon from './DownloadIcon';
-import SpinnerIcon from './SpinnerIcon';
+import { CheckIcon, SpinnerIcon, DownloadIcon } from '../assets/icons';
 
 const TYPE_MAP: Record<string, { label: string; bg: string; color: string }> = {
   "application/pdf": { label: "PDF", bg: "#FAECE7", color: "#993C1D" },
@@ -115,15 +114,5 @@ export function AttachmentsPanel({ emailId, attachments }: { emailId: number; at
         })}
       </div>
     </div>
-  )
-}
-
-
-
-function CheckIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 8l3.5 3.5L13 4" />
-    </svg>
   )
 }

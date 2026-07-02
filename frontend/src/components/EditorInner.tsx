@@ -34,6 +34,7 @@ import { createWorkflow, updateWorkflow } from '../services/workflowServices';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { Workflow } from '../types/workflow';
+import { InfoIcon, UploadIcon } from '../assets/icons';
 
 const nodeTypes: NodeTypes = { stepNode: StepNode, foreach: ForEachNode };
 
@@ -306,11 +307,7 @@ const EditorInner = ({ stepsMeta, contextVars, workflow }: EditorInnerProps) => 
           title="Workflow info"
           className="flex items-center justify-center w-8 h-8 rounded-md text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border-none bg-transparent cursor-pointer flex-shrink-0"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="16" x2="12" y2="12"/>
-            <line x1="12" y1="8" x2="12.01" y2="8"/>
-          </svg>
+          <InfoIcon />
         </button>
         <div className="flex items-center gap-2 ml-auto">
           <button
@@ -428,10 +425,7 @@ const EditorInner = ({ stepsMeta, contextVars, workflow }: EditorInnerProps) => 
 
           {isDroppingJson && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-blue-500/10 border-2 border-dashed border-blue-400 rounded-lg m-2 pointer-events-none">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 16V8M8 12l4-4 4 4"/>
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-              </svg>
+              <UploadIcon />
               <p className="mt-3 text-sm font-medium text-blue-500">Drop JSON to load workflow</p>
             </div>
           )}

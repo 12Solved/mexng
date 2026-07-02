@@ -8,8 +8,7 @@ import type { WorkflowRun } from '../types/workflowRun';
 import { RunState } from '../types/workflowRun';
 import { getAllWorkflowRuns, rerunAllWorkflowRuns, rerunWorkflowRun, runNewWorkflows, runAllWorkflows } from '../services/runsServices';
 import { AttachmentsPanel } from '../components/AttachmentPanel';
-import DownloadIcon from '../components/DownloadIcon';
-import SpinnerIcon from '../components/SpinnerIcon';
+import { DownloadIcon, SpinnerIcon } from '../assets/icons';
 import { useHtmlDarkClass } from '../hooks/useHtmlDarkClass';
 
 const SingleEmailPage = () => {
