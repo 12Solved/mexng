@@ -221,9 +221,9 @@ export default function WorkflowsPage() {
   })
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)]">
+    <div>
 
-      <div className="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-white px-4 py-2.5 flex items-center justify-between flex-shrink-0 border-b border-slate-200 dark:border-slate-800">
+      <div className="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-white px-4 py-2.5 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
         <span className="font-bold text-[15px]">Workflows</span>
         <button
           onClick={() => navigate('/workflow/new')}
@@ -233,7 +233,7 @@ export default function WorkflowsPage() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-4">
+      <div className="w-full px-6 py-6">
 
         {(hasWorkflows || search) && (
           <input
@@ -241,14 +241,14 @@ export default function WorkflowsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search workflows…"
-            className="w-64 px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 rounded-md outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+            className="w-64 mb-4 px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 rounded-md outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
           />
         )}
 
         {loading ? (
           <p className="text-sm text-slate-400">Loading…</p>
         ) : workflows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+          <div className="flex flex-col items-center justify-center gap-3 text-center py-12">
             <p className="text-slate-400 text-sm">
               {activeSearch ? 'No workflows match your search.' : 'No workflows yet.'}
             </p>
