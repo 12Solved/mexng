@@ -209,17 +209,19 @@ const SingleEmailPage = () => {
         {email.html_body ? (
           <iframe
             srcDoc={`
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data: http:; style-src 'unsafe-inline'; font-src data:;">
             <style>
-              html, body { margin: 0; padding: 0; overflow: hidden; background: ${isDark ? '#0f172a' : '#ffffff'}; }
+              html, body { margin: 0; padding: 0; overflow: auto; background: ${isDark ? '#0f172a' : '#ffffff'}; }
             </style>
-            ${DOMPurify.sanitize(email.html_body)}
+            ${DOMPurify.sanitize(email.html_body, {
+              FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'base'],
+              FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur'],
+              ALLOW_DATA_ATTR: false
+            })}
             `}
-            className="w-full border-0 min-h-96 rounded-md ring-1 ring-slate-200/80 dark:ring-slate-700/80"
-            sandbox="allow-same-origin"
-            onLoad={(e) => {
-              const iframe = e.currentTarget;
-              iframe.style.height = iframe.contentDocument?.body.scrollHeight + 'px';
-            }}
+            className="w-full border-0 h-96 rounded-md ring-1 ring-slate-200/80 dark:ring-slate-700/80"
+            sandbox=""
+            title="Email content"
           />
         ) : (
           <p className="text-sm text-muted-foreground dark:text-slate-400 leading-relaxed">{email.body}</p>
