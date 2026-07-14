@@ -26,7 +26,7 @@ Triggered from the UI via **"Dry run all workflows"** on the single email view. 
 
 `@dry_run: True` is seeded into `WorkflowContext` at the start of each run. Effectful steps check this flag and skip their side effects (file writes, DB updates, etc.) while still setting output keys (e.g. `saved_path`) so downstream steps behave faithfully.
 
-Filter and control-flow steps (`ProviderFilterStep`, `AttachmentPatternStep`, `ForEachStep`) run normally — dry run only suppresses effects, not routing logic.
+Filter and control-flow steps (`MatchSenderAddressStep`, `MatchRecipientAddressStep`, `AttachmentPatternStep`, `ForEachStep`) run normally — dry run only suppresses effects, not routing logic.
 
 **Result shape** (per workflow):
 - `stopped: false`, `error: null` — ran to completion, would have had effects

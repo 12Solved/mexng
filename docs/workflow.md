@@ -219,3 +219,46 @@ Examples (`config`):
 { "name": "region", "value": "eu", "only_if_unset": "true" }
 ```
 only sets `region` if no earlier step already set it.
+
+## Address filtering (`match_sender_address_step`, `match_recipient_address_step`)
+
+Replaces the old `provider_filter_step` (domain-suffix-only, `From` header
+only). Both steps match with a case-insensitive regex (`re.search`) rather
+than a fixed substring/suffix check, and both `@stop` the branch on no match.
+See `docs/mailglob.txt` / `docs/notes.md` for the legacy Perl `mail_glob`
+behavior these steps are modeled after.
+
+`MatchSenderAddressStep` checks the email's `From` address:
+
+| Field     | Default | Meaning |
+|-----------|---------|---------|
+| `pattern` | —       | required. Regex matched against the sender's address (`user@domain`, display name stripped) |
+
+Sets `sender_address` in context on match.
+
+```json
+{ "type": "match_sender_address_step", "config": { "pattern": "@.*example\\.com$" } }
+```
+
+`MatchRecipientAddressStep` checks a recipient header — `To`, `Cc`, `Bcc`,
+`X-Original-To`, or all four at once:
+
+| Field     | Default | Meaning |
+|-----------|---------|---------|
+| `header`  | `To`    | `To`, `Cc`, `Bcc`, `X-Original-To`, or `Any (To, Cc, Bcc, X-Original-To)` |
+| `pattern` | —       | required. Regex matched against each candidate address found in the selected header(s) |
+
+Each header may contain multiple comma-separated addresses; the step checks
+all of them and matches on the first one satisfying `pattern`. With
+`header: "Any (...)"`, this mirrors `mail_glob`'s `to_regex || cc_regex ||
+x_original_to_regex` OR logic. `To` is read from the email's stored
+`recipient` column; `Cc`/`Bcc`/`X-Original-To` are read from `raw_headers`
+(only present if the mail server actually sent that header — there is no
+`Received`-header-derived fallback like the legacy Seppmail-specific trick in
+`mail_glob`).
+
+Sets `recipient_address` in context on match.
+
+```json
+{ "type": "match_recipient_address_step", "config": { "header": "Any (To, Cc, Bcc, X-Original-To)", "pattern": "bank.*@" } }
+```

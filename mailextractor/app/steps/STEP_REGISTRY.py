@@ -4,14 +4,16 @@ from .extract_attachment_step import ExtractAttachmentsStep
 from .extract_extension_step import ExtractExtensionStep
 from .foreach_step import ForEachStep
 from .hello_step import HelloStep
-from .provider_filter_step import ProviderFilterStep
+from .match_recipient_address_step import MatchRecipientAddressStep
+from .match_sender_address_step import MatchSenderAddressStep
 from .save_attachment_step import SaveAttachmentStep
 from .set_variable_step import SetVariableStep
 from .timeout_step import TimeoutStep
 
 STEP_REGISTRY = {
     "hello_step": HelloStep,
-    "provider_filter_step": ProviderFilterStep,
+    "match_sender_address_step": MatchSenderAddressStep,
+    "match_recipient_address_step": MatchRecipientAddressStep,
     "attachment_pattern_step": AttachmentPatternStep,
     "save_attachment_step": SaveAttachmentStep,
     "extract_attachment_step": ExtractAttachmentsStep,

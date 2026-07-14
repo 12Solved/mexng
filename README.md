@@ -131,7 +131,8 @@ scripts/               # Utility scripts
 - `AttachmentPatternStep`: Filter emails by attachment patterns
 - `SaveAttachmentStep`: Save attachments to filesystem
 - `ExtractAttachmentsStep`: Extract attachment data
-- `ProviderFilterStep`: Filter by email provider
+- `MatchSenderAddressStep`: Filter emails by sender address using a regex
+- `MatchRecipientAddressStep`: Filter emails by a recipient address (To/Cc/Bcc/X-Original-To, or any of them) using a regex
 - `ForEachStep`: Iterate over collections
 - `DateStep`: Compute a date/time (now, the email's date, or an explicit/referenced value), apply a day/hour offset, and format it with a Python `strftime` pattern into a configurable context variable
 
