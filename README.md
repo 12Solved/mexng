@@ -133,6 +133,7 @@ scripts/               # Utility scripts
 - `ExtractAttachmentsStep`: Extract attachment data
 - `ProviderFilterStep`: Filter by email provider
 - `ForEachStep`: Iterate over collections
+- `DateStep`: Compute a date/time (now, the email's date, or an explicit/referenced value), apply a day/hour offset, and format it with a Python `strftime` pattern into a configurable context variable
 
 See [docs/workflow.md](docs/workflow.md) for workflow configuration details.
 

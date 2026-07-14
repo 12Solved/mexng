@@ -121,3 +121,54 @@ Currently the implemenetation forces the user to you use this pattern ```${VARIA
 Examples:
 * ```${attachment_name}-data```
 * ```${attachment_name}-${date}-${email_sender}```
+
+## Date computation (`date_step`)
+
+`DateStep` computes a date/time and stores it in context as a string, so it
+can be reused later via `${output_var}` (e.g. in a `save_attachment_step`
+destination or filename template).
+
+Config:
+
+| Field           | Default          | Meaning |
+|-----------------|------------------|---------|
+| `source`        | `now`            | `now`, `email_date` (the email's `Date` header), an explicit ISO 8601 string, or a `${variable}` reference to one already in context |
+| `offset_days`   | `0`              | integer, may be negative |
+| `offset_hours`  | `0`              | integer, may be negative |
+| `format`        | `%Y-%m-%d`       | Python `strftime` pattern |
+| `output_var`    | `computed_date`  | context key the result is stored under — editable so multiple `date_step` instances can coexist in one workflow |
+
+If `source=email_date` and the email has no date, the step logs a warning
+and sets `@stop`, skipping the rest of that (sub-)workflow branch rather
+than failing the run. A malformed `source`/offset/format is treated as a
+config error and raises.
+
+Examples (`config`):
+
+```json
+{ "source": "now", "format": "%Y%m%d" }
+```
+→ `computed_date = "20260714"`
+
+```json
+{ "source": "email_date", "offset_days": -1, "format": "%Y-%m-%d", "output_var": "prev_day" }
+```
+→ `prev_day` = the day before the email's date, e.g. `"2026-07-13"`
+
+```json
+{ "source": "email_date", "format": "%B %d, %Y" }
+```
+→ `computed_date = "July 14, 2026"`
+
+Chaining two instances to get both an invoice date and a due date 7 days later:
+
+```json
+[
+  { "type": "date_step", "config": { "source": "email_date", "output_var": "invoice_date" } },
+  { "type": "date_step", "config": { "source": "email_date", "offset_days": 7, "output_var": "due_date" } },
+  { "type": "save_attachment_step", "config": {
+      "destination": "/invoices/${invoice_date}",
+      "filename_template": "invoice-due-${due_date}"
+  } }
+]
+```

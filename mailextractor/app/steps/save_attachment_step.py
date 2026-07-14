@@ -70,14 +70,6 @@ class SaveAttachmentStep(Step):
             'ext': ext.lstrip('.'),  # Remove leading dot for easier templating
         }
 
-        # Add email date variables if available NOTE: temporary solution
-        if email and email.date:
-            template_context['date'] = email.date.strftime('%Y-%m-%d')
-            template_context['year'] = email.date.strftime('%Y')
-            template_context['month'] = email.date.strftime('%m')
-            template_context['day'] = email.date.strftime('%d')
-            template_context['datetime'] = email.date.strftime('%Y-%m-%d_%H-%M-%S')
-
         self.resolver = stp.Resolver()
 
         # Resolve destination path first
@@ -123,7 +115,7 @@ class SaveAttachmentStep(Step):
 
         except PermissionError:
             self.logger.error(
-                f"Permission denied when saving file to {destination}",
+                f"Permission denied when saving file to {resolved_destination}",
                 extra={
                     "event_type": "FILE_PERMISSION_DENIED",
                     "step": self.step_name,
