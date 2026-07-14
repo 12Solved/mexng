@@ -6,6 +6,7 @@ from .foreach_step import ForEachStep
 from .hello_step import HelloStep
 from .provider_filter_step import ProviderFilterStep
 from .save_attachment_step import SaveAttachmentStep
+from .set_variable_step import SetVariableStep
 from .timeout_step import TimeoutStep
 
 STEP_REGISTRY = {
@@ -18,4 +19,5 @@ STEP_REGISTRY = {
     "extract_extension_step": ExtractExtensionStep,
     "timeout": TimeoutStep,
     "date_step": DateStep,
+    "set_variable_step": SetVariableStep,
 }

@@ -172,3 +172,50 @@ Chaining two instances to get both an invoice date and a due date 7 days later:
   } }
 ]
 ```
+
+## Setting variables (`set_variable_step`)
+
+`SetVariableStep` writes a literal or resolved value into a context key. This step lets the
+user pick both the key and the value, so it can set ordinary variables
+(`invoice_id`, `region`, ...) or reserved control keys (`@stop`, `@dry_run`).
+
+Config:
+
+| Field           | Default   | Meaning |
+|-----------------|-----------|---------|
+| `name`          | —         | required. Context key to set, e.g. `invoice_id` or `@dry_run` |
+| `value`         | —         | required. Literal value or a `${variable}` reference to one already in context |
+| `value_type`    | `string`  | `string`, `boolean`, `integer`, or `float`. Coerces the resolved value before storing it |
+| `only_if_unset` | `false`   | if `true`, skip the assignment when `name` is already present in context |
+
+**Security note — control keys are not restricted.** `name` accepts any
+string, including `@stop` and `@dry_run`, with no allowlist. This mirrors how
+`run_options` supplied through the run API is already merged into context
+unfiltered (`workflow.py`), so this step does not introduce a new privilege —
+but it does make it easy for a workflow author to change control flow (skip
+the rest of a branch, or silently disable disk writes) from deep inside a
+step list. Review workflows that use `set_variable_step` on `@`-prefixed keys
+with the same care as the run-time `@dry_run` toggle.
+
+Use `value_type: "boolean"` for control flags: string values are always
+truthy in Python, so writing the literal string `"false"` to `@dry_run`
+without coercion would leave dry-run **on**. Accepted boolean literals
+(case-insensitive): `true`/`1`/`yes`/`on`/`enable`/`enabled` and
+`false`/`0`/`no`/`off`/`disable`/`disabled`.
+
+Examples (`config`):
+
+```json
+{ "name": "invoice_id", "value": "${email_subject}" }
+```
+
+```json
+{ "name": "@dry_run", "value": "disable", "value_type": "boolean" }
+```
+`context["@dry_run"] = False`, so later steps that check
+`context.get("@dry_run")` treat this run as live rather than dry-run.
+
+```json
+{ "name": "region", "value": "eu", "only_if_unset": "true" }
+```
+only sets `region` if no earlier step already set it.
