@@ -262,3 +262,53 @@ Sets `recipient_address` in context on match.
 ```json
 { "type": "match_recipient_address_step", "config": { "header": "Any (To, Cc, Bcc, X-Original-To)", "pattern": "bank.*@" } }
 ```
+
+## Archive extraction (`extract_archive_step`)
+
+If the current attachment's filename matches `archive_pattern`, extracts its
+members in memory (trying no password, then each configured password in
+order) and stores them in context — same shape as `email.attachments`, so a
+nested `foreach` can feed them straight into `attachment_pattern_step`/
+`save_attachment_step`. Otherwise, or if every password fails, `output_var`
+is set to `[]` and the branch continues rather than stopping.
+
+Shells out to `7z` (matching `mailglob.txt`'s approach), same as the Perl
+original — the attachment is written to a temp file, extracted flat
+(basename-only, no member paths) into a temp dir via `7z e`, and the temp
+dir is removed afterwards. Since `7z` detects format from file content
+rather than the filename, pointing `archive_pattern` at e.g. `*.7z` or
+`*.tar.gz` works without any code change — only the entry-point filename
+check is pattern-based, not the extraction itself.
+
+Config:
+
+| Field             | Default                | Meaning |
+|-------------------|-------------------------|---------|
+| `archive_pattern` | `*.zip`                 | Unix-style wildcard deciding whether `current` is treated as an archive |
+| `passwords`       | (empty)                 | Comma-separated list, tried in order after an unencrypted attempt |
+| `output_var`      | `extracted_attachments` | Context key the extracted member list is stored under |
+| `max_depth`       | `5`                     | Caps recursion into archives found inside archives (zip-of-zip) |
+| `max_seconds`     | `60`                    | Aborts a single archive's extraction attempt if `7z` runs longer than this |
+
+Requires the `7z` binary on `PATH` (`p7zip-full` in the Docker image); a
+missing binary logs a distinct `ARCHIVE_TOOL_MISSING` event rather than
+looking like a bad password.
+
+Example — mirrors `reporting_xyz`'s encrypted-zip-to-CSV feed from
+`docs/mailglob.txt`:
+
+```json
+[
+  { "type": "extract_attachment_step" },
+  { "type": "foreach", "over": "attachments", "steps": [
+      { "type": "extract_archive_step", "config": { "passwords": "secret1,secret2" } },
+      { "type": "foreach", "over": "extracted_attachments", "steps": [
+          { "type": "attachment_pattern_step", "config": { "pattern": "*_CRESCHZZEKH_SecurityPositions.csv" } },
+          { "type": "save_attachment_step", "config": {
+              "destination": "./out/bank-light",
+              "filename_template": "BANKZRHPositionFile_${date}.csv"
+          } }
+      ]}
+  ]}
+]
+```

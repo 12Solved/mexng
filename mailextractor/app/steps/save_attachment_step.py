@@ -144,7 +144,9 @@ class SaveAttachmentStep(Step):
         try:
             attachment.storage_path = new_path
 
-            session = object_session(attachment)
+            # object_session() raises for non-mapped objects (e.g. attachments
+            # synthesized by extract_archive_step) instead of returning None.
+            session = object_session(attachment) if hasattr(attachment, "_sa_instance_state") else None
             if session:
                 session.commit()
             self.logger.info(

@@ -1,5 +1,6 @@
 from .attachment_pattern_step import AttachmentPatternStep
 from .date_step import DateStep
+from .extract_archive_step import ExtractArchiveStep
 from .extract_attachment_step import ExtractAttachmentsStep
 from .extract_extension_step import ExtractExtensionStep
 from .foreach_step import ForEachStep
@@ -17,6 +18,7 @@ STEP_REGISTRY = {
     "attachment_pattern_step": AttachmentPatternStep,
     "save_attachment_step": SaveAttachmentStep,
     "extract_attachment_step": ExtractAttachmentsStep,
+    "extract_archive_step": ExtractArchiveStep,
     "foreach": ForEachStep,
     "extract_extension_step": ExtractExtensionStep,
     "timeout": TimeoutStep,
