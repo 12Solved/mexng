@@ -263,6 +263,40 @@ Sets `recipient_address` in context on match.
 { "type": "match_recipient_address_step", "config": { "header": "Any (To, Cc, Bcc, X-Original-To)", "pattern": "bank.*@" } }
 ```
 
+## Subject / Message-ID filtering (`match_subject_step`, `match_message_id_step`)
+
+Same shape as `match_sender_address_step`/`match_recipient_address_step`: a
+single case-insensitive regex, `@stop`s the branch on no match. Fill in the
+remaining `mail_glob` header conditions — see `docs/mailglob.txt` /
+`docs/notes.md`.
+
+`MatchSubjectStep` checks `Subject` (`re.IGNORECASE | re.DOTALL`, mirroring
+`mail_glob`'s `/is`):
+
+| Field     | Default | Meaning |
+|-----------|---------|---------|
+| `pattern` | —       | required. Regex matched anywhere in the subject line |
+
+```json
+{ "type": "match_subject_step", "config": { "pattern": "Daily.*Report" } }
+```
+
+`MatchMessageIdStep` checks `Message-ID` (including the surrounding `<>`)
+with `re.IGNORECASE` only, mirroring `mail_glob`'s `/i`-only
+`message_id_regex`:
+
+| Field     | Default | Meaning |
+|-----------|---------|---------|
+| `pattern` | —       | required. Regex matched anywhere in the Message-ID header |
+
+```json
+{ "type": "match_message_id_step", "config": { "pattern": "@reports\\.example\\.com>$" } }
+```
+
+Chain with `match_sender_address_step`/`match_recipient_address_step` to AND
+all four conditions — each stops its own branch on mismatch, same net effect
+as `mail_glob`'s combined check.
+
 ## Archive extraction (`extract_archive_step`)
 
 If the current attachment's filename matches `archive_pattern`, extracts its
