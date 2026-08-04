@@ -1,0 +1,42 @@
+{
+  "name": "Meridian Feed (reporting_xyz translation, pattern_map form)",
+  "description": "Same legacy Perl reporting_xyz()/mail_glob() example from docs/mailglob.txt as the older per-pattern workflow, rewritten with attachment_pattern_map_step + save_attachment_step: matches mail from feed@meridian.com addressed to a meridian.*@ recipient, opens the encrypted daily_feed.zip attachment (tries 'secret1' then 'secret2'), and copies 7 specific files out of it under renamed, date-stamped target names - all 7 pattern=>target pairs live in one attachment_pattern_map_step instead of 7 sibling foreach/attachment_pattern_step/save_attachment_step blocks. attachment_pattern_map_step matches the current attachment against the pairs in order and, on match, stores the resolved target name in context under 'matched_filename' (or stops the branch on no match); the unmodified save_attachment_step then saves using filename_template: \"${matched_filename}\". Use with example-data/emails/meridian_feed.eml (extracts successfully with 'secret2') or example-data/emails/meridian_feed_wrong_password.eml (all passwords fail -> nothing is saved, no crash).",
+  "steps": [
+    { "type": "match_sender_address_step", "config": { "pattern": "feed@meridian\\.com" } },
+    { "type": "match_recipient_address_step", "config": { "header": "To", "pattern": "meridian.*@" } },
+    { "type": "extract_attachment_step" },
+    {
+      "type": "foreach",
+      "over": "attachments",
+      "steps": [
+        {
+          "type": "extract_archive_step",
+          "config": {
+            "archive_pattern": "*.zip",
+            "passwords": "secret1,secret2",
+            "output_var": "extracted_attachments"
+          }
+        },
+        {
+          "type": "foreach",
+          "over": "extracted_attachments",
+          "steps": [
+            {
+              "type": "attachment_pattern_map_step",
+              "config": {
+                "pattern_map": "*_NODE1_SecurityPositions.csv=>FEED_PositionFile_${date}.csv;*_NODE1_CashPositions.csv=>FEED_CashFile_${date}.csv;*_NODE1_ForeignExchangeInventory.txt=>FEED_ForeignExchangeInventory_${date}.csv;*_NODE2_SecurityPositions.csv=>FEED_PositionFile_2_${date}.csv;*_NODE2_CashPositions.csv=>FEED_CashFile_2_${date}.csv;*_NODE1_ForexConf.csv=>FEED_ForexConf_${date}.csv;*_NODE1_TDForwardContracts.xml=>FEED_TDForwardContracts_${date}.xml"
+              }
+            },
+            {
+              "type": "save_attachment_step",
+              "config": {
+                "destination": "./out/meridian-feed",
+                "filename_template": "${matched_filename}"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

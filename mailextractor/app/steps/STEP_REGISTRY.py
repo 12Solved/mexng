@@ -1,3 +1,4 @@
+from .attachment_pattern_map_step import AttachmentPatternMapStep
 from .attachment_pattern_step import AttachmentPatternStep
 from .date_step import DateStep
 from .extract_archive_step import ExtractArchiveStep
@@ -20,6 +21,7 @@ STEP_REGISTRY = {
     "match_subject_step": MatchSubjectStep,
     "match_message_id_step": MatchMessageIdStep,
     "attachment_pattern_step": AttachmentPatternStep,
+    "attachment_pattern_map_step": AttachmentPatternMapStep,
     "save_attachment_step": SaveAttachmentStep,
     "extract_attachment_step": ExtractAttachmentsStep,
     "extract_archive_step": ExtractArchiveStep,

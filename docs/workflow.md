@@ -329,7 +329,8 @@ missing binary logs a distinct `ARCHIVE_TOOL_MISSING` event rather than
 looking like a bad password.
 
 Example — mirrors `reporting_xyz`'s encrypted-zip-to-CSV feed from
-`docs/mailglob.txt`:
+`docs/mailglob.txt` (renamed to a fictional `meridian`/`NODE1` feed — see
+`docs/handoff.md` for why):
 
 ```json
 [
@@ -337,10 +338,65 @@ Example — mirrors `reporting_xyz`'s encrypted-zip-to-CSV feed from
   { "type": "foreach", "over": "attachments", "steps": [
       { "type": "extract_archive_step", "config": { "passwords": "secret1,secret2" } },
       { "type": "foreach", "over": "extracted_attachments", "steps": [
-          { "type": "attachment_pattern_step", "config": { "pattern": "*_CRESCHZZEKH_SecurityPositions.csv" } },
+          { "type": "attachment_pattern_step", "config": { "pattern": "*_NODE1_SecurityPositions.csv" } },
           { "type": "save_attachment_step", "config": {
-              "destination": "./out/bank-light",
-              "filename_template": "BANKZRHPositionFile_${date}.csv"
+              "destination": "./out/meridian-feed",
+              "filename_template": "FEED_PositionFile_${date}.csv"
+          } }
+      ]}
+  ]}
+]
+```
+
+This single-pattern shape needs one `foreach`/`attachment_pattern_step`/
+`save_attachment_step` triplet per pattern — see
+`attachment_pattern_map_step` below for collapsing multiple patterns (like
+`reporting_xyz`'s full 7-pattern `select` hash) into one filter step.
+
+## Multi-pattern filename mapping (`attachment_pattern_map_step`)
+
+Covers the case `attachment_pattern_step` doesn't: multiple filename
+patterns, each renamed to its own target, in one step instead of one
+`foreach`/`attachment_pattern_step`/`save_attachment_step` triplet per
+pattern. Matches the current attachment against an ordered list of
+`pattern=>filename_template` pairs (same `fnmatch` matching as
+`attachment_pattern_step`/`extract_archive_step`). On the first match, the
+template is resolved and stored in context under `matched_filename` for a
+following **unmodified** `save_attachment_step` to consume via
+`filename_template: "${matched_filename}"` — mirrors how `${date}` already
+flows into `save_attachment_step` today (config is re-resolved against
+context right before each step runs), so no change to `save_attachment_step`
+itself was needed.
+
+Config:
+
+| Field          | Default | Meaning |
+|----------------|---------|---------|
+| `pattern_map`  | —       | required. Semicolon-separated `pattern=>filename_template` pairs, checked in order; first match wins |
+
+`@stop` is set (branch stops, nothing saved) when:
+- no pattern matches the current attachment's filename, or
+- a pattern matches but its template half is left empty (`pattern=>`) —
+  "matched but explicitly skip saving," mirroring `mail_glob`'s `select` hash
+  supporting an empty-string target (`docs/mailglob.txt`).
+
+Example — the same `reporting_xyz` feed as above, with all 7 pattern→target
+pairs collapsed into one `attachment_pattern_map_step` instead of 7 sibling
+`foreach`/`attachment_pattern_step`/`save_attachment_step` blocks (full
+worked example: `example-data/workflows/meridian_feed.json`):
+
+```json
+[
+  { "type": "extract_attachment_step" },
+  { "type": "foreach", "over": "attachments", "steps": [
+      { "type": "extract_archive_step", "config": { "passwords": "secret1,secret2" } },
+      { "type": "foreach", "over": "extracted_attachments", "steps": [
+          { "type": "attachment_pattern_map_step", "config": {
+              "pattern_map": "*_NODE1_SecurityPositions.csv=>FEED_PositionFile_${date}.csv;*_NODE2_SecurityPositions.csv=>FEED_PositionFile_2_${date}.csv"
+          } },
+          { "type": "save_attachment_step", "config": {
+              "destination": "./out/meridian-feed",
+              "filename_template": "${matched_filename}"
           } }
       ]}
   ]}

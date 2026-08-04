@@ -48,6 +48,7 @@ for workflow_path in workflow_paths:
         
         workflow = WorkflowModel(
             name=workflow_name,
+            description=workflow_json.get("description"),
             workflow_json=workflow_json,
             enabled=True
         )
