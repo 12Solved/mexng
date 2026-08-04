@@ -1,0 +1,22 @@
+{
+  "name": "set_variable_step @dry_run boolean coercion",
+  "description": "No sender/recipient filtering. Exercises the documented pitfall in docs/workflow.md: '@dry_run' is a reserved control key checked as a Python truthy value elsewhere in the engine, so writing the literal string 'false' to it without value_type=boolean would leave dry-run ON (all non-empty strings are truthy). Here value_type=boolean coerces 'disable' to the real boolean False, so this workflow saves for real even when invoked via a dry-run entry point that would otherwise seed @dry_run=True into context before steps run. Use with example-data/emails/priority_ticket.eml.",
+  "steps": [
+    { "type": "set_variable_step", "config": {
+        "name": "@dry_run",
+        "value": "disable",
+        "value_type": "boolean"
+    } },
+    { "type": "extract_attachment_step" },
+    {
+      "type": "foreach",
+      "over": "attachments",
+      "steps": [
+        { "type": "save_attachment_step", "config": {
+            "destination": "./out/set-variable-dry-run-toggle",
+            "filename_template": "${attachment_name}${ext}"
+        } }
+      ]
+    }
+  ]
+}

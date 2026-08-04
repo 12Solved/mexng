@@ -1,0 +1,23 @@
+From: Partner Dispatch <dispatch@partner-shipping.com>
+To: ap@ourcompany.com
+Subject: Newsletter - Partner Shipping Monthly Update
+Date: Fri, 17 Jul 2026 09:05:00 +0000
+Message-ID: <20260717.2@orders.partner-shipping.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============5610293847561029384=="
+
+--===============5610293847561029384==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Confirmation attached.
+
+--===============5610293847561029384==
+Content-Type: text/csv
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="po-8842.csv"
+MIME-Version: 1.0
+
+cG9fbnVtYmVyLHRvdGFsClBPLTg4NDIsNDgyMC4wMAo=
+
+--===============5610293847561029384==--

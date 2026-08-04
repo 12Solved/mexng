@@ -1,0 +1,32 @@
+From: reports@example.com
+To: ops@example.com
+Subject: Weekly Summary Plus Internal Notes
+Date: Fri, 17 Jul 2026 09:00:00 +0000
+Message-ID: <178420578119.2916.mixedattach0001@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============7561029384756102938=="
+
+--===============7561029384756102938==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Summary and notes attached.
+
+--===============7561029384756102938==
+Content-Type: text/csv
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="weekly-summary.csv"
+MIME-Version: 1.0
+
+aXRlbSxxdHksdW5pdF9wcmljZQp3aWRnZXQsMTAsMTIuNTAK
+
+--===============7561029384756102938==
+Content-Type: text/plain
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="internal-notes.txt"
+MIME-Version: 1.0
+
+SW50ZXJuYWwgbm90ZXMgLSBub3QgZm9yIHNhdmluZywgd3JvbmcgZXh0ZW5zaW9uIG9uIHB1cnBv
+c2UuCg==
+
+--===============7561029384756102938==--

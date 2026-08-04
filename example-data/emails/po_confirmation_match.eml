@@ -1,0 +1,23 @@
+From: Partner Dispatch <dispatch@partner-shipping.com>
+To: ap@ourcompany.com
+Subject: Purchase Order Confirmation - PO-8842
+Date: Fri, 17 Jul 2026 09:00:00 +0000
+Message-ID: <20260717.1@orders.partner-shipping.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============4756102938475610293=="
+
+--===============4756102938475610293==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Confirmation attached.
+
+--===============4756102938475610293==
+Content-Type: text/csv
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="po-8842.csv"
+MIME-Version: 1.0
+
+cG9fbnVtYmVyLHRvdGFsClBPLTg4NDIsNDgyMC4wMAo=
+
+--===============4756102938475610293==--

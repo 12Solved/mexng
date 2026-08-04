@@ -1,0 +1,19 @@
+{
+  "name": "Attachment pattern filter + extension extraction",
+  "description": "No sender/recipient filtering. Exercises attachment_pattern_step and extract_extension_step chained inside a single foreach, the same shape used throughout the legacy mailglob-derived workflows: attachment_pattern_step gates each item on '*.csv' (setting @stop for that iteration only, since foreach resets @stop per item - non-matching items don't block the ones after them), extract_extension_step then sets 'ext' from the surviving attachment's filename, and save_attachment_step routes it into a per-extension folder via ${ext}. Use with example-data/emails/mixed_attachments.eml, which has two attachments: 'weekly-summary.csv' (matches, saved to ./out/attachment-pattern-and-extension/csv/) and 'internal-notes.txt' (does not match '*.csv', skipped - confirms only the matching item makes it through).",
+  "steps": [
+    { "type": "extract_attachment_step" },
+    {
+      "type": "foreach",
+      "over": "attachments",
+      "steps": [
+        { "type": "attachment_pattern_step", "config": { "pattern": "*.csv" } },
+        { "type": "extract_extension_step" },
+        { "type": "save_attachment_step", "config": {
+            "destination": "./out/attachment-pattern-and-extension/${ext}",
+            "filename_template": "${attachment_name}.${ext}"
+        } }
+      ]
+    }
+  ]
+}

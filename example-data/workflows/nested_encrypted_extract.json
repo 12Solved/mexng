@@ -1,0 +1,31 @@
+{
+  "name": "Nested encrypted archive extraction",
+  "description": "No sender/recipient filtering. Exercises extract_archive_step's recursion combined with password fallback: the attachment is an AES-256-encrypted 'secure_bundle.zip' (password 'outer2026') whose only member is itself an AES-256-encrypted 'confidential_inner.zip' (password 'inner2026') containing 'confidential_data.csv'. Both passwords are supplied to the same extract_archive_step and are retried at every recursion depth, so the outer layer opens with 'outer2026' (after an unencrypted attempt and 'inner2026' both fail) and the recursive call into confidential_inner.zip opens with 'inner2026' (after an unencrypted attempt and 'outer2026' both fail). Use with example-data/emails/nested_encrypted_zip.eml.",
+  "steps": [
+    { "type": "extract_attachment_step" },
+    {
+      "type": "foreach",
+      "over": "attachments",
+      "steps": [
+        {
+          "type": "extract_archive_step",
+          "config": {
+            "archive_pattern": "*.zip",
+            "passwords": "outer2026,inner2026",
+            "output_var": "extracted_attachments"
+          }
+        },
+        {
+          "type": "foreach",
+          "over": "extracted_attachments",
+          "steps": [
+            { "type": "save_attachment_step", "config": {
+                "destination": "./out/nested-encrypted",
+                "filename_template": "${attachment_name}${ext}"
+            } }
+          ]
+        }
+      ]
+    }
+  ]
+}

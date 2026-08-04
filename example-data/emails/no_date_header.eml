@@ -1,0 +1,23 @@
+From: Vendor Billing <billing@vendor.example.com>
+To: ap@ourcompany.com
+Subject: Invoice - Date Header Stripped
+Message-ID: <178420578119.2916.nodate0001@vendor.example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============7284910365501827364=="
+
+--===============7284910365501827364==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+No Date header on this message - confirms date_step's source=email_date
+stop-branch instead of crashing.
+
+--===============7284910365501827364==
+Content-Type: text/csv
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="invoice-4472.csv"
+MIME-Version: 1.0
+
+aW52b2ljZV9pZCxhbW91bnQsZHVlX2luX2RheXMKNDQ3MiwxMTAwLjAwLDE0Cg==
+
+--===============7284910365501827364==--

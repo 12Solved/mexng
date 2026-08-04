@@ -1,0 +1,23 @@
+From: Partner Dispatch <dispatch@partner-shipping.com>
+To: Shipping Ops <shippingops@ourcompany.com>
+Subject: Shipment Manifest - Container 4471
+Date: Thu, 16 Jul 2026 09:00:00 +0000
+Message-ID: <178420578119.2916.senderrecipto0001@partner-shipping.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============1029384756102938475=="
+
+--===============1029384756102938475==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Manifest attached.
+
+--===============1029384756102938475==
+Content-Type: text/csv
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="manifest.csv"
+MIME-Version: 1.0
+
+aXRlbSxxdWFudGl0eQpjb250YWluZXIsNDIK
+
+--===============1029384756102938475==--

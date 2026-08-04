@@ -1,0 +1,31 @@
+{
+  "name": "date_step invoice due-date demo",
+  "description": "No sender/recipient filtering. Direct translation of the date_step example in docs/workflow.md: derives 'invoice_date' from the email's own Date header, derives 'due_date' as invoice_date + 7 days, then reuses both ${invoice_date}/${due_date} in save_attachment_step's destination/filename_template - proving date_step output flows into a later step's config via the same ${var} resolution used for magic variables like ${date}/${email_subject}. Also sets 'run_timestamp' from source=now with a custom strftime format to show a second, independent date_step in the same workflow (distinct output_var so they don't collide). Use with example-data/emails/invoice_report.eml (Date: Tue, 14 Jul 2026 10:00:00 +0000 -> invoice_date=2026-07-14, due_date=2026-07-21).",
+  "steps": [
+    { "type": "extract_attachment_step" },
+    { "type": "date_step", "config": {
+        "source": "email_date",
+        "output_var": "invoice_date"
+    } },
+    { "type": "date_step", "config": {
+        "source": "email_date",
+        "offset_days": "7",
+        "output_var": "due_date"
+    } },
+    { "type": "date_step", "config": {
+        "source": "now",
+        "format": "%Y%m%d_%H%M%S",
+        "output_var": "run_timestamp"
+    } },
+    {
+      "type": "foreach",
+      "over": "attachments",
+      "steps": [
+        { "type": "save_attachment_step", "config": {
+            "destination": "./out/date-step-invoice/${invoice_date}",
+            "filename_template": "invoice-due-${due_date}-${attachment_name}${ext}"
+        } }
+      ]
+    }
+  ]
+}

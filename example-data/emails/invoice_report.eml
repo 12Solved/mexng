@@ -1,0 +1,23 @@
+From: Vendor Billing <billing@vendor.example.com>
+To: ap@ourcompany.com
+Subject: Invoice #4471
+Date: Tue, 14 Jul 2026 10:00:00 +0000
+Message-ID: <178420578119.2916.invoice4471@vendor.example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============6103928475110293847=="
+
+--===============6103928475110293847==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Invoice attached.
+
+--===============6103928475110293847==
+Content-Type: text/csv
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="invoice-4471.csv"
+MIME-Version: 1.0
+
+aW52b2ljZV9pZCxhbW91bnQsZHVlX2luX2RheXMKNDQ3MSwyNDUwLjAwLDcK
+
+--===============6103928475110293847==--

@@ -1,0 +1,31 @@
+{
+  "name": "set_variable_step examples",
+  "description": "No sender/recipient filtering. Exercises set_variable_step's three value_type coercions and only_if_unset, then reuses the resulting variables in a later step's config (${ticket_id}/${region}/${priority}) the same way date_step's output_var is reused - config resolution happens once per step against the full workflow context (workflow.py's resolve_config), not just inside the setting step. 'ticket_id' is set from ${email_subject} (string, the default value_type), 'region' is set to 'eu' with only_if_unset=true (no earlier step already set 'region' here, so it takes effect - only_if_unset matters more when a run_option pre-seeds the same key), and 'priority' is coerced to an integer so downstream arithmetic/formatting sees a real int rather than the string '1'. Use with example-data/emails/priority_ticket.eml (Subject: 'Priority Ticket #77 - region eu' -> ticket_id resolves to that subject; attachment saved under ./out/set-variable-examples/eu/P1-ticket-note.txt).",
+  "steps": [
+    { "type": "extract_attachment_step" },
+    { "type": "set_variable_step", "config": {
+        "name": "ticket_id",
+        "value": "${email_subject}"
+    } },
+    { "type": "set_variable_step", "config": {
+        "name": "region",
+        "value": "eu",
+        "only_if_unset": "true"
+    } },
+    { "type": "set_variable_step", "config": {
+        "name": "priority",
+        "value": "1",
+        "value_type": "integer"
+    } },
+    {
+      "type": "foreach",
+      "over": "attachments",
+      "steps": [
+        { "type": "save_attachment_step", "config": {
+            "destination": "./out/set-variable-examples/${region}",
+            "filename_template": "P${priority}-${attachment_name}${ext}"
+        } }
+      ]
+    }
+  ]
+}

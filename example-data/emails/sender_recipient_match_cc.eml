@@ -1,0 +1,24 @@
+From: Partner Dispatch <dispatch@partner-shipping.com>
+To: Distribution List <distribution@ourcompany.com>
+Cc: Shipping Reports <shippingreports@ourcompany.com>
+Subject: Shipment Manifest - Container 4472
+Date: Thu, 16 Jul 2026 09:00:00 +0000
+Message-ID: <178420578119.2916.senderrecptcc0001@partner-shipping.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============2938475610293847561=="
+
+--===============2938475610293847561==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Manifest attached.
+
+--===============2938475610293847561==
+Content-Type: text/csv
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="manifest.csv"
+MIME-Version: 1.0
+
+aXRlbSxxdWFudGl0eQpjb250YWluZXIsNDIK
+
+--===============2938475610293847561==--

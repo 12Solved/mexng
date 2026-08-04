@@ -1,0 +1,19 @@
+{
+  "name": "Subject and Message-ID filter",
+  "description": "Exercises match_subject_step and match_message_id_step in sequence (AND semantics via @stop chaining, same pattern as sender_recipient_filter.json): subject must contain 'Purchase Order Confirmation' AND Message-ID must end in '@orders.partner-shipping.com>'. On match, saves every attachment under ./out/subject-msgid-filter/. Use with example-data/emails/po_confirmation_match.eml (matches both, attachment saved), po_confirmation_subject_mismatch.eml (subject fails first, match_message_id_step never runs, nothing saved), or po_confirmation_message_id_mismatch.eml (subject matches but the Message-ID domain doesn't, nothing saved).",
+  "steps": [
+    { "type": "match_subject_step", "config": { "pattern": "Purchase Order Confirmation" } },
+    { "type": "match_message_id_step", "config": { "pattern": "@orders\\.partner-shipping\\.com>$" } },
+    { "type": "extract_attachment_step" },
+    {
+      "type": "foreach",
+      "over": "attachments",
+      "steps": [
+        { "type": "save_attachment_step", "config": {
+            "destination": "./out/subject-msgid-filter",
+            "filename_template": "${attachment_name}${ext}"
+        } }
+      ]
+    }
+  ]
+}

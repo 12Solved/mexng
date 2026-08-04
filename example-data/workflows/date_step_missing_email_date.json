@@ -1,0 +1,21 @@
+{
+  "name": "date_step missing email_date stop-branch",
+  "description": "No sender/recipient filtering. Exercises date_step's documented fallback when source=email_date but the email has no Date header: logs DATE_STEP_MISSING_EMAIL_DATE and sets @stop instead of raising, so the rest of the branch (including save_attachment_step) never runs. Use with example-data/emails/no_date_header.eml (Date header stripped - nothing gets saved) to confirm the stop path, and contrast with example-data/emails/invoice_report.eml (has a Date header - runs to completion, attachment saved) to confirm the same workflow behaves normally when source data is present.",
+  "steps": [
+    { "type": "extract_attachment_step" },
+    { "type": "date_step", "config": {
+        "source": "email_date",
+        "output_var": "invoice_date"
+    } },
+    {
+      "type": "foreach",
+      "over": "attachments",
+      "steps": [
+        { "type": "save_attachment_step", "config": {
+            "destination": "./out/date-step-missing-date/${invoice_date}",
+            "filename_template": "${attachment_name}${ext}"
+        } }
+      ]
+    }
+  ]
+}

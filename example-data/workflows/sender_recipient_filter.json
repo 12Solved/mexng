@@ -1,0 +1,22 @@
+{
+  "name": "Sender + recipient address filter",
+  "description": "Exercises match_sender_address_step and match_recipient_address_step in sequence (AND semantics via @stop chaining, same pattern as subject_and_message_id_filter.json): sender must match 'dispatch@partner-shipping\\.com' AND at least one of To/Cc/Bcc/X-Original-To must match 'shipping.*@' (header='Any'). On match, saves every attachment under ./out/sender-recipient-filter/. Use with example-data/emails/sender_recipient_match_to.eml (matches via To: shippingops@ourcompany.com), sender_recipient_match_cc.eml (To doesn't match but Cc: shippingreports@ourcompany.com does - confirms the 'Any' option checks all four headers, not just To), or sender_recipient_nomatch.eml (sender matches but neither To nor Cc matches 'shipping.*@' - match_recipient_address_step stops the branch, nothing saved).",
+  "steps": [
+    { "type": "match_sender_address_step", "config": { "pattern": "dispatch@partner-shipping\\.com" } },
+    { "type": "match_recipient_address_step", "config": {
+        "header": "Any (To, Cc, Bcc, X-Original-To)",
+        "pattern": "shipping.*@"
+    } },
+    { "type": "extract_attachment_step" },
+    {
+      "type": "foreach",
+      "over": "attachments",
+      "steps": [
+        { "type": "save_attachment_step", "config": {
+            "destination": "./out/sender-recipient-filter",
+            "filename_template": "${attachment_name}${ext}"
+        } }
+      ]
+    }
+  ]
+}

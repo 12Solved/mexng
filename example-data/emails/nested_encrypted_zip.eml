@@ -1,0 +1,28 @@
+From: reports@example.com
+To: ops@example.com
+Subject: Confidential Bundle (Nested + Encrypted)
+Date: Thu, 16 Jul 2026 09:00:00 +0000
+Message-ID: <178420578119.2916.nestedenc0001@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============4798125102375774138=="
+
+--===============4798125102375774138==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Confidential nested archive attached.
+
+--===============4798125102375774138==
+Content-Type: application/zip
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="secure_bundle.zip"
+MIME-Version: 1.0
+
+UEsDBBQAAQBjAAtjBF0AAAAApQAAANAAAAAWAAsAY29uZmlkZW50aWFsX2lubmVyLnppcAGZBwAC
+AEFFAwgAJNlixmgSjjt9bXu1EFKRNJ3T9BqcEh+rVFrUDLjz2uAH0wbUobAUwxhZv7te5OMfo+ow
+fpnvseEXBnxEWBk/bnv6+cdTyFj92s1ARqZkOTDQqumJt2Q7gNehfPo844KSu229UafFPpGP4jai
+biNT8s1iYfPYhfnI8xWh4Z6HCDpYqwzfXTSy2/6LPqiRIiUapRPZ+DMi4T2kufJeTy/sz3AsPYFU
+UEsBAhQAFAABAGMAC2MEXQAAAAClAAAA0AAAABYACwAAAAAAAAAAAIABAAAAAGNvbmZpZGVudGlh
+bF9pbm5lci56aXABmQcAAgBBRQMIAFBLBQYAAAAAAQABAE8AAADkAAAAAAA=
+
+--===============4798125102375774138==--
