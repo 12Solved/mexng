@@ -1,19 +1,23 @@
+import { useContext } from 'react';
 import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
-import { FALLBACK_COLORS } from '../../types/workflowEditor';
+import { FALLBACK_COLORS, DropTargetContext } from '../../types/workflowEditor';
 import type { ForeachFlowNode } from '../../types/workflowEditor';
 
-const ForEachNode = ({ data, selected }: NodeProps<ForeachFlowNode>) => {
+const ForEachNode = ({ id, data, selected }: NodeProps<ForeachFlowNode>) => {
   const colors = data.meta?.colors ?? FALLBACK_COLORS;
   const config = data.config as { collection?: string; item?: string };
   const isDark = document.documentElement.classList.contains('dark');
-  
+  const isDropTarget = useContext(DropTargetContext) === id;
+
   return (
     <div
       className="rounded-xl w-full h-full box-border"
       style={{
-        border: `2px dashed ${selected ? (isDark ? '#f1f5f9' : '#111827') : colors.border}`,
-        background: isDark ? 'rgba(139,92,246,0.08)' : 'rgba(139,92,246,0.04)',
-        boxShadow: selected ? `0 0 0 2px ${isDark ? '#f1f5f9' : '#111827'}` : undefined,
+        border: `2px dashed ${isDropTarget ? '#22c55e' : selected ? (isDark ? '#f1f5f9' : '#111827') : colors.border}`,
+        background: isDropTarget
+          ? (isDark ? 'rgba(34,197,94,0.18)' : 'rgba(34,197,94,0.10)')
+          : (isDark ? 'rgba(139,92,246,0.08)' : 'rgba(139,92,246,0.04)'),
+        boxShadow: isDropTarget ? '0 0 0 2px #22c55e' : selected ? `0 0 0 2px ${isDark ? '#f1f5f9' : '#111827'}` : undefined,
       }}
     >
       <NodeResizer

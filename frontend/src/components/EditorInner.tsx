@@ -25,10 +25,10 @@ import {
   workflowJsonToFlow,
   flowToWorkflowJson,
   getWorkflowValidationErrors,
-  FOREACH_HEADER_H,
-  FOREACH_CHILD_GAP,
-  FOREACH_PADDING_B,
+  relayoutForeachTree,
+  FOREACH_WIDTH,
 } from '../utils/workflowUtils';
+import { DropTargetContext } from '../types/workflowEditor';
 import type { AnyFlowNode, ContextVars, StepMeta, WorkflowJson } from '../types/workflowEditor';
 import { createWorkflow, updateWorkflow } from '../services/workflowServices';
 import { useNavigate } from 'react-router-dom';
@@ -39,6 +39,16 @@ import { InfoIcon, UploadIcon } from '../assets/icons';
 const nodeTypes: NodeTypes = { stepNode: StepNode, foreach: ForEachNode };
 
 const EMPTY_WORKFLOW: WorkflowJson = { steps: [] };
+
+/** Whether `nodeId` is nested (at any depth) inside `ancestorId`. */
+const isDescendantOf = (nodeId: string, ancestorId: string, allNodes: AnyFlowNode[]): boolean => {
+  let current = allNodes.find((n) => n.id === nodeId);
+  while (current?.parentId) {
+    if (current.parentId === ancestorId) return true;
+    current = allNodes.find((n) => n.id === current!.parentId);
+  }
+  return false;
+};
 
 interface EditorInnerProps {
   stepsMeta: StepMeta[];
@@ -60,9 +70,10 @@ const EditorInner = ({ stepsMeta, contextVars, workflow }: EditorInnerProps) => 
   const [exportOpen, setExportOpen] = useState(false);
   const [exportJson, setExportJson] = useState('');
   const [isDroppingJson, setIsDroppingJson] = useState(false);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, getInternalNode } = useReactFlow();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -114,18 +125,127 @@ const EditorInner = ({ stepsMeta, contextVars, workflow }: EditorInnerProps) => 
     );
   }, [setNodes]);
 
+  // Deletes a node along with every step nested inside it, at any depth.
   const onDeleteNode = useCallback((nodeId: string): void => {
-    setNodes((nds: AnyFlowNode[]) => nds.filter((n: AnyFlowNode) => n.id !== nodeId && n.parentId !== nodeId));
-    setEdges((eds: Edge[]) => eds.filter((e: Edge) => e.source !== nodeId && e.target !== nodeId));
-  }, [setNodes, setEdges]);
+    const toRemove = new Set<string>([nodeId]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      nodes.forEach((n: AnyFlowNode) => {
+        if (n.parentId && toRemove.has(n.parentId) && !toRemove.has(n.id)) {
+          toRemove.add(n.id);
+          grew = true;
+        }
+      });
+    }
+    setNodes((nds: AnyFlowNode[]) => relayoutForeachTree(nds.filter((n: AnyFlowNode) => !toRemove.has(n.id))));
+    setEdges((eds: Edge[]) => eds.filter((e: Edge) => !toRemove.has(String(e.source)) && !toRemove.has(String(e.target))));
+  }, [nodes, setNodes, setEdges]);
+
+  // Absolute (canvas-space) bounding box of a node, correct regardless of nesting depth.
+  const getAbsBounds = useCallback((n: AnyFlowNode) => {
+    const abs = getInternalNode(n.id)?.internals.positionAbsolute ?? n.position;
+    const w = n.width ?? n.measured?.width ?? (n.style?.width as number | undefined) ?? FOREACH_WIDTH;
+    const h = n.height ?? n.measured?.height ?? (n.style?.height as number | undefined) ?? 280;
+    return { x: abs.x, y: abs.y, w, h };
+  }, [getInternalNode]);
+
+  // Among several for-each containers whose bounds all contain the drop point (nested
+  // containers overlap by definition), the innermost one — always the smallest by area,
+  // since a container is sized to fit around its children — is the intended target.
+  const smallestByArea = useCallback((candidates: AnyFlowNode[]): AnyFlowNode | undefined =>
+    candidates.reduce<AnyFlowNode | undefined>((best, n) => {
+      if (!best) return n;
+      const b = getAbsBounds(best);
+      const c = getAbsBounds(n);
+      return c.w * c.h < b.w * b.h ? n : best;
+    }, undefined),
+  [getAbsBounds]);
+
+  // Finds the for-each container (if any) whose bounds contain a canvas point — used while
+  // dragging a brand-new step in from the sidebar.
+  const findForeachAtPoint = useCallback((point: { x: number; y: number }): AnyFlowNode | undefined =>
+    smallestByArea(nodes.filter((n: AnyFlowNode) => {
+      if (n.type !== 'foreach') return false;
+      const { x, y, w, h } = getAbsBounds(n);
+      return point.x >= x && point.x <= x + w && point.y >= y && point.y <= y + h;
+    })),
+  [nodes, getAbsBounds, smallestByArea]);
 
   const onDragOver = useCallback((e: React.DragEvent<HTMLDivElement>): void => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-  }, []);
+    const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    setDropTargetId(findForeachAtPoint(flowPos)?.id ?? null);
+  }, [screenToFlowPosition, findForeachAtPoint]);
+
+  const onDragLeave = useCallback((): void => setDropTargetId(null), []);
+
+  // Finds the for-each container (if any) whose bounds contain the dragged node's center.
+  // A for-each may itself be dropped into another for-each, but never into itself or one of
+  // its own descendants (that would create a cycle).
+  const findForeachDropTarget = useCallback((draggedNode: AnyFlowNode): AnyFlowNode | undefined => {
+    const { x: dx, y: dy, w: dw, h: dh } = getAbsBounds(draggedNode);
+    const centerX = dx + dw / 2;
+    const centerY = dy + dh / 2;
+
+    return smallestByArea(nodes.filter((n: AnyFlowNode) => {
+      if (n.type !== 'foreach' || n.id === draggedNode.id) return false;
+      if (draggedNode.type === 'foreach' && isDescendantOf(n.id, draggedNode.id, nodes)) return false;
+      const { x, y, w, h } = getAbsBounds(n);
+      return centerX >= x && centerX <= x + w && centerY >= y && centerY <= y + h;
+    }));
+  }, [nodes, getAbsBounds, smallestByArea]);
+
+  // Highlights the for-each container the dragged node currently hovers over.
+  const onNodeDrag: NodeMouseHandler<AnyFlowNode> = useCallback((_, draggedNode) => {
+    setDropTargetId(findForeachDropTarget(draggedNode)?.id ?? null);
+  }, [findForeachDropTarget]);
+
+  // Reparents a step into (or out of) a for-each container when it's dropped there on the canvas,
+  // and re-stacks a container's children whenever one is dropped at a new position within it.
+  const onNodeDragStop: NodeMouseHandler<AnyFlowNode> = useCallback((_, draggedNode) => {
+    setDropTargetId(null);
+
+    const target = findForeachDropTarget(draggedNode);
+    const prevParentId = draggedNode.parentId ?? null;
+
+    if ((target?.id ?? null) === prevParentId) {
+      if (!target) return; // freely repositioned at top level — nothing to relayout
+      setNodes((nds: AnyFlowNode[]) => relayoutForeachTree(nds));
+      return;
+    }
+
+    const draggedAbs = getInternalNode(draggedNode.id)?.internals.positionAbsolute ?? draggedNode.position;
+    const targetAbs = target ? getAbsBounds(target) : null;
+
+    setNodes((nds: AnyFlowNode[]) => {
+      const next = nds.map((n: AnyFlowNode) => {
+        if (n.id !== draggedNode.id) return n;
+        if (target && targetAbs) {
+          return {
+            ...n,
+            parentId: target.id,
+            position: { x: draggedAbs.x - targetAbs.x, y: draggedAbs.y - targetAbs.y },
+          };
+        }
+        const { parentId: _parentId, ...rest } = n;
+        return { ...rest, position: draggedAbs };
+      });
+
+      return relayoutForeachTree(next);
+    });
+
+    // The node's old "next step" edges (from import, or a prior reorder) no longer mean
+    // anything once it's crossed into a different container — drop them so a promoted-to-
+    // top-level node doesn't look like it still has an incoming link from its old sibling
+    // and get silently excluded (along with everything nested inside it) from export.
+    setEdges((eds: Edge[]) => eds.filter((e: Edge) => e.source !== draggedNode.id && e.target !== draggedNode.id));
+  }, [findForeachDropTarget, getAbsBounds, getInternalNode, setNodes, setEdges]);
 
   const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>): void => {
     e.preventDefault();
+    setDropTargetId(null);
     const raw = e.dataTransfer.getData('application/reactflow-step');
     if (!raw) return;
     const step = JSON.parse(raw) as StepMeta;
@@ -133,18 +253,13 @@ const EditorInner = ({ stepsMeta, contextVars, workflow }: EditorInnerProps) => 
     const flowPos   = screenToFlowPosition({ x: e.clientX, y: e.clientY });
     const isForeach = step.type === 'foreach';
 
-    const foreachParent = isForeach ? undefined : nodes.find((n: AnyFlowNode) => {
-      if (n.type !== 'foreach') return false;
-      const w = n.width ?? (n.style?.width as number | undefined) ?? 340;
-      const h = n.height ?? (n.style?.height as number | undefined) ?? 280;
-      return (
-        flowPos.x >= n.position.x && flowPos.x <= n.position.x + w &&
-        flowPos.y >= n.position.y && flowPos.y <= n.position.y + h
-      );
-    });
+    // A brand-new step (including a fresh for-each) can be dropped into an existing for-each —
+    // it has no children of its own yet, so nesting it can never create a cycle.
+    const foreachParent = findForeachAtPoint(flowPos);
+    const parentAbs = foreachParent ? getAbsBounds(foreachParent) : null;
 
-    const position = foreachParent
-      ? { x: flowPos.x - foreachParent.position.x, y: flowPos.y - foreachParent.position.y }
+    const position = foreachParent && parentAbs
+      ? { x: flowPos.x - parentAbs.x, y: flowPos.y - parentAbs.y }
       : flowPos;
 
     const newNode: AnyFlowNode = {
@@ -152,23 +267,15 @@ const EditorInner = ({ stepsMeta, contextVars, workflow }: EditorInnerProps) => 
       type: isForeach ? 'foreach' : 'stepNode',
       position,
       data: { stepType: step.type, config: {}, meta: step },
-      ...(foreachParent ? { parentId: foreachParent.id, extent: 'parent' as const } : {}),
+      ...(foreachParent ? { parentId: foreachParent.id } : {}),
       ...(isForeach ? { width: 340, height: 280, style: { width: 340, height: 280 } } : {}),
     };
 
     setNodes((nds: AnyFlowNode[]) => {
       const next = [...nds, newNode];
-      if (!foreachParent) return next;
-      return next.map((n: AnyFlowNode) => {
-        if (n.id !== foreachParent.id) return n;
-        const children = next.filter((c: AnyFlowNode) => c.parentId === foreachParent.id);
-        const neededH  = FOREACH_HEADER_H + children.length * FOREACH_CHILD_GAP + FOREACH_PADDING_B;
-        const currentH = n.height ?? (n.style?.height as number | undefined) ?? 280;
-        if (neededH <= currentH) return n;
-        return { ...n, height: neededH, style: { ...n.style, height: neededH } };
-      });
+      return foreachParent ? relayoutForeachTree(next) : next;
     });
-  }, [screenToFlowPosition, setNodes, nodes]);
+  }, [screenToFlowPosition, setNodes, findForeachAtPoint, getAbsBounds]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -405,23 +512,28 @@ const EditorInner = ({ stepsMeta, contextVars, workflow }: EditorInnerProps) => 
         <Sidebar stepsMeta={stepsMeta} />
 
         <div ref={reactFlowWrapper} className="flex-1 relative bg-slate-50 dark:bg-slate-950">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeClick={onNodeClick}
-            onPaneClick={onPaneClick}
-            onDragOver={onDragOver}
-            onDrop={onDrop}
-            nodeTypes={nodeTypes}
-            defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
-            fitView
-          >
-            <Controls />
-            <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
-          </ReactFlow>
+          <DropTargetContext.Provider value={dropTargetId}>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onNodeClick={onNodeClick}
+              onNodeDrag={onNodeDrag}
+              onNodeDragStop={onNodeDragStop}
+              onPaneClick={onPaneClick}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              nodeTypes={nodeTypes}
+              defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
+              fitView
+            >
+              <Controls />
+              <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+            </ReactFlow>
+          </DropTargetContext.Provider>
 
           {isDroppingJson && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-blue-500/10 border-2 border-dashed border-blue-400 rounded-lg m-2 pointer-events-none">

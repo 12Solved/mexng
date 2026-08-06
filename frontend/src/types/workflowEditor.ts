@@ -1,3 +1,4 @@
+import { createContext } from 'react';
 import type { Node, Edge } from '@xyflow/react';
 
 export interface CategoryColors {
@@ -64,3 +65,6 @@ export interface ContextVars {
   global: Record<string, string>;
   foreach: Record<string, string>;
 }
+
+/** Id of the for-each container currently highlighted as a drop target, or null. */
+export const DropTargetContext = createContext<string | null>(null);
