@@ -9,6 +9,13 @@ export interface CategoryColors {
 
 export const FALLBACK_COLORS: CategoryColors = { border: '#6b7280', bg: '#f9fafb', text: '#374151' };
 
+export interface DelimitedListColumn {
+  key: string;
+  label: string;
+  placeholder?: string;
+  mask?: boolean;
+}
+
 export interface ConfigSchemaField {
   type: string;
   required?: boolean;
@@ -18,6 +25,9 @@ export interface ConfigSchemaField {
   default?: string;
   options?: string[];
   template_vars?: Record<string, string>;
+  item_delimiter?: string;
+  pair_delimiter?: string;
+  columns?: DelimitedListColumn[];
 }
 
 export interface StepMeta {

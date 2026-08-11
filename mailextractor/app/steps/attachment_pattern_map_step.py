@@ -22,11 +22,17 @@ class AttachmentPatternMapStep(Step):
   args_out = {"matched_filename": "string"}
   config_schema = {
       "pattern_map": {
-          "type": "string",
+          "type": "delimited_list",
           "required": True,
           "label": "Pattern -> filename template map",
           "placeholder": "*_SecurityPositions.csv=>Position_${date}.csv;*_CashPositions.csv=>Cash_${date}.csv",
-          "description": "Semicolon-separated pattern=>filename_template pairs, checked in order; first match wins. Leave the template half empty (pattern=>) to match but skip saving. Pair with a following save_attachment_step using filename_template: \"${matched_filename}\".",
+          "description": "Pairs of pattern=>filename_template, checked in order; first match wins. Leave the template half empty to match but skip saving. Pair with a following save_attachment_step using filename_template: \"${matched_filename}\". No escaping: ';' or '=>' inside a pattern or template will be misread as a separator.",
+          "item_delimiter": ";",
+          "pair_delimiter": "=>",
+          "columns": [
+              {"key": "pattern", "label": "Pattern", "placeholder": "*_A.csv"},
+              {"key": "template", "label": "Filename template", "placeholder": "A_${date}.csv"},
+          ],
       }
   }
 

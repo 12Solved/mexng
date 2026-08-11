@@ -24,14 +24,19 @@ const StepNode = ({ data, selected }: NodeProps<StepFlowNode>) => {
             {data.meta.docstring.split('\n')[0]}
           </div>
         )}
-        {data.config && Object.entries(data.config).map(([k, v]) => (
-          <div key={k} className="text-[10px] mt-1 text-gray-600 dark:text-slate-400">
-            <span className="font-medium">{k}:</span>{' '}
-            <span className="text-gray-400 dark:text-slate-500">
-              {String(v).slice(0, 30)}{String(v).length > 30 ? '…' : ''}
-            </span>
-          </div>
-        ))}
+        {data.config && Object.entries(data.config).map(([k, v]) => {
+          const isMasked = data.meta?.config_schema?.[k]?.columns?.some(c => c.mask);
+          return (
+            <div key={k} className="text-[10px] mt-1 text-gray-600 dark:text-slate-400">
+              <span className="font-medium">{k}:</span>{' '}
+              <span className="text-gray-400 dark:text-slate-500">
+                {isMasked
+                  ? (String(v).trim() ? '••••••••' : '')
+                  : `${String(v).slice(0, 30)}${String(v).length > 30 ? '…' : ''}`}
+              </span>
+            </div>
+          );
+        })}
         {data.user_comment && (
           <div className="text-[10px] mt-1.5 italic text-gray-400 dark:text-slate-500 border-l-2 border-gray-200 dark:border-slate-700 pl-1.5 max-w-[200px] leading-snug">
             {String(data.user_comment).slice(0, 80)}{String(data.user_comment).length > 80 ? '…' : ''}

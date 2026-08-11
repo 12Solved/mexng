@@ -33,11 +33,13 @@ class ExtractArchiveStep(Step):
           "description": "Unix-style wildcard used to decide whether the current attachment is an archive.",
       },
       "passwords": {
-          "type": "string",
+          "type": "delimited_list",
           "required": False,
-          "label": "Passwords (comma-separated)",
+          "label": "Passwords",
           "placeholder": "secret1,secret2",
-          "description": "Tried in order after an unencrypted attempt. Leave blank for unencrypted archives only.",
+          "description": "Tried in order after an unencrypted attempt. Leave blank for unencrypted archives only. No escaping: a password containing a comma will be split into multiple wrong passwords.",
+          "item_delimiter": ",",
+          "columns": [{"key": "value", "label": "Password", "mask": True}],
       },
       "output_var": {
           "type": "string",

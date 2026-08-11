@@ -324,6 +324,13 @@ Config:
 | `max_depth`       | `5`                     | Caps recursion into archives found inside archives (zip-of-zip) |
 | `max_seconds`     | `60`                    | Aborts a single archive's extraction attempt if `7z` runs longer than this |
 
+`passwords` is stored as the comma-separated string above, but the editor UI
+renders it as a one-column row list (add/remove a password per row) instead
+of a raw text input — see `frontend/src/components/DelimitedListEditor.tsx`.
+There is no escaping: a password containing a comma is split into multiple
+wrong passwords, both in the parser (`extract_archive_step.py:91`) and in
+the row editor, which re-splits on every reload.
+
 Requires the `7z` binary on `PATH` (`p7zip-full` in the Docker image); a
 missing binary logs a distinct `ARCHIVE_TOOL_MISSING` event rather than
 looking like a bad password.
@@ -373,6 +380,15 @@ Config:
 | Field          | Default | Meaning |
 |----------------|---------|---------|
 | `pattern_map`  | —       | required. Semicolon-separated `pattern=>filename_template` pairs, checked in order; first match wins |
+
+`pattern_map` is stored as the flat string above, but the editor UI renders
+it as a two-column row list (pattern / filename template, add/remove per
+row) instead of a raw text input — see
+`frontend/src/components/DelimitedListEditor.tsx`.
+There is no escaping: a `;` or `=>` inside a pattern or template is
+misread as a separator, both in the parser (`_parse_pattern_map()`,
+`attachment_pattern_map_step.py:79-87`) and in the row editor, which
+re-splits on every reload.
 
 `@stop` is set (branch stops, nothing saved) when:
 - no pattern matches the current attachment's filename, or

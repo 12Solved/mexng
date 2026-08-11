@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FALLBACK_COLORS } from '../types/workflowEditor';
 import { getCollectionsAtNode, getContextAtNode } from '../utils/workflowUtils';
+import DelimitedListEditor from './DelimitedListEditor';
 import type { AnyFlowNode, ContextVars, StepMeta, ConfigSchemaField } from '../types/workflowEditor';
 import type { Edge } from '@xyflow/react';
 
@@ -158,6 +159,13 @@ const ConfigPanel = ({ node, stepsMeta, nodes, edges, contextVars, onChange, onC
                     />
                     <div className="text-[10px] text-gray-400 dark:text-slate-500">Interpreted as UTC</div>
                   </div>
+                ) : field.type === 'delimited_list' ? (
+                  <DelimitedListEditor
+                    key={`${node.id}:${key}`}
+                    field={field}
+                    value={config[key] ?? field.default ?? ''}
+                    onChange={v => handleChange(key, v)}
+                  />
                 ) : field.type === 'duration' ? (
                   <div className="flex gap-2">
                     <input
