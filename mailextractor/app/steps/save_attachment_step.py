@@ -101,17 +101,6 @@ class SaveAttachmentStep(Step):
                                 new_filename),
                             attachment.content,
                             create_parent=True)
-            self.logger.info(
-                f"Attachment saved to: {new_path}",
-                extra={
-                    "event_type": "FILE_SAVED_TO_PATH",
-                    "step": self.step_name,
-                    "attachment_id": getattr(attachment, "id", None),
-                    "email_id": getattr(email, "id", None),
-                    "workflow_id": context.get("workflow_id"),
-                    "run_id": context.get("run_id", None),
-                }
-            )
 
         except PermissionError:
             self.logger.error(
