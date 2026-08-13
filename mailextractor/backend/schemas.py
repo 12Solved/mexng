@@ -87,6 +87,15 @@ class WorkflowRun(BaseModel):
 class RunOptions(BaseModel):
   run_options: dict = {}
 
+class TestRunBody(BaseModel):
+  email_id: int
+  workflow_json: dict
+  workflow_id: int | None = None
+
+class TestRunResult(BaseModel):
+  run_id: int | None
+  state: RunState
+
 class EmailSearchBody(BaseModel):
   query: dict | None = None
   workflow_id: int | None = None

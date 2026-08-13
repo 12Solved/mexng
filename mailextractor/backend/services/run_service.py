@@ -53,6 +53,38 @@ def run_all_workflows(db: Session, email_id: int, run_options: dict | None = Non
     return {"queued": queued_count, "already_queued": already_queued_count}
 
 
+def test_run_workflow(db: Session, workflow_json: dict, email_id: int, workflow_id: int | None = None):
+    email = db.query(models.Email).options(joinedload(models.Email.attachments)).filter(models.Email.id == email_id).first()
+    if not email:
+        return None
+
+    run_options = {"@dry_run": True}
+    run = None
+    if workflow_id is not None:
+        run = models.WorkflowRun(
+            workflow_id=workflow_id,
+            email_id=email_id,
+            state=models.RunState.running,
+            run_options=run_options,
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+    try:
+        workflow = Workflow(workflow_json, workflow_id=workflow_id, run_id=run.id if run else None)
+        context = workflow.run(email, run_options=run_options)
+        state = models.RunState.skipped if context.get("@stop") else models.RunState.success
+    except Exception:
+        state = models.RunState.failed
+
+    if run is not None:
+        run.state = state
+        db.commit()
+
+    return run.id if run is not None else None, state
+
+
 def get_runs_by_email(db: Session, email_id: int):
     email = db.query(models.Email).filter(models.Email.id == email_id).first()
     if not email:

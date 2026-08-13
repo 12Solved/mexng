@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from mailextractor.backend import schemas
 from mailextractor.backend.db import get_db
-from mailextractor.backend.services import workflow_service
+from mailextractor.backend.services import run_service, workflow_service
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
@@ -42,6 +42,19 @@ def set_workflow_enabled(workflow_id: int, enabled: bool = Body(..., embed=True)
     if not wf:
         raise HTTPException(status_code=404, detail="Workflow not found")
     return wf
+
+
+@router.post("/test-run", response_model=schemas.TestRunResult)
+def test_run_workflow(body: schemas.TestRunBody, db: Session = Depends(get_db)):
+    if body.workflow_id is not None and not workflow_service.get_workflow(db, body.workflow_id):
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    result = run_service.test_run_workflow(db, body.workflow_json, body.email_id, workflow_id=body.workflow_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Email not found")
+
+    run_id, state = result
+    return {"run_id": run_id, "state": state}
 
 
 @router.delete("/{workflow_id}")

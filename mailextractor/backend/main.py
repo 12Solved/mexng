@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi_pagination import add_pagination
 from sqlalchemy import text
 
+from mailextractor.app.app_logging.setup_logging import setup_logging
 from mailextractor.backend.db import engine
 from mailextractor.backend.routes import (
     checkpoints,
@@ -16,6 +17,8 @@ from mailextractor.backend.routes import (
     workflows,
 )
 from mailextractor.models import Base
+
+setup_logging(engine)
 
 
 # def _init_db() -> None:

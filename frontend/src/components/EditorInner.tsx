@@ -20,6 +20,7 @@ import ForEachNode from './nodes/ForEachNode';
 import ConfigPanel from './ConfigPanel';
 import Sidebar from './Sidebar';
 import WorkflowInfoModal from './WorkflowInfoModal';
+import TestRunModal from './TestRunModal';
 import {
   uid,
   workflowJsonToFlow,
@@ -64,6 +65,7 @@ const EditorInner = ({ stepsMeta, contextVars, workflow, onSaved }: EditorInnerP
   const [workflowName, setWorkflowName] = useState(workflow?.name ?? '');
   const [workflowDescription, setWorkflowDescription] = useState(workflow?.description ?? '');
   const [infoOpen, setInfoOpen] = useState(false);
+  const [testRunOpen, setTestRunOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -431,6 +433,12 @@ const EditorInner = ({ stepsMeta, contextVars, workflow, onSaved }: EditorInnerP
             Export JSON
           </button>
           <button
+            onClick={() => setTestRunOpen(true)}
+            className="px-3.5 py-1.5 bg-slate-200 dark:bg-gray-700 hover:bg-slate-300 dark:hover:bg-gray-600 text-slate-700 dark:text-white rounded-md text-[13px] cursor-pointer border-none transition-colors"
+          >
+            Test run
+          </button>
+          <button
             type="button"
             onClick={handleSave}
             disabled={saving}
@@ -571,6 +579,15 @@ const EditorInner = ({ stepsMeta, contextVars, workflow, onSaved }: EditorInnerP
         onNameChange={setWorkflowName}
         onDescriptionChange={setWorkflowDescription}
         onClose={() => setInfoOpen(false)}
+      />
+    )}
+
+    {testRunOpen && (
+      <TestRunModal
+        workflowJson={flowToWorkflowJson(nodes, edges)}
+        workflowId={workflow?.id}
+        workflowName={workflowName}
+        onClose={() => setTestRunOpen(false)}
       />
     )}
     </>
