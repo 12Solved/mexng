@@ -1,0 +1,47 @@
+From: reports@example.com
+To: ops@example.com
+Subject: Monthly Report Package
+Date: Mon, 17 Aug 2026 09:00:00 +0000
+Message-ID: <178420578120.2916.patternmapmulti0001@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============5030848885750078664=="
+
+--===============5030848885750078664==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Monthly report package attached.
+
+--===============5030848885750078664==
+Content-Type: text/csv
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="monthly_report_FINAL.csv"
+MIME-Version: 1.0
+
+aXRlbSxxdHksdW5pdF9wcmljZQp3aWRnZXQsMTAsMTIuNTAK
+
+--===============5030848885750078664==
+Content-Type: text/csv
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="monthly_summary.csv"
+MIME-Version: 1.0
+
+aXRlbSxxdHksdW5pdF9wcmljZQpnaXptbyw0LDcuMjUK
+
+--===============5030848885750078664==
+Content-Type: text/plain
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="readme.txt"
+MIME-Version: 1.0
+
+SW50ZXJuYWwgbm90ZXMgLSBub3QgbWF0Y2hlZCBieSBhbnkgY3N2IHBhdHRlcm4uCg==
+
+--===============5030848885750078664==
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="irrelevant.pdf"
+MIME-Version: 1.0
+
+JVBERi0xLjQgZmFrZSBwZGYgY29udGVudCwgbm90IG1hdGNoZWQgYnkgYW55IHBhdHRlcm4K
+
+--===============5030848885750078664==--

@@ -1,0 +1,31 @@
+{
+  "name": "Pattern map multi-match",
+  "description": "No sender/recipient filtering. Exercises attachment_pattern_map_step's multi-match behavior directly on top-level attachments (no archive step, so it runs without the '7z' binary): 'monthly_report_FINAL.csv' matches two pattern_map entries at once ('*_FINAL.csv' and 'monthly_*.csv') and gets saved twice, once under each resolved name; 'monthly_summary.csv' matches only the 'monthly_*.csv' entry and is saved once; 'readme.txt' matches the '*.txt' entry but that entry's template is left empty, so it's matched-but-skipped (no save, no crash); 'irrelevant.pdf' matches nothing, so 'matched_attachments' is an empty list and the branch just continues to the next attachment. The 'monthly_*.csv' template includes '${attachment_name}' (the source basename, set by the outer foreach) so the two different source files don't collide on the same output name and overwrite each other. Use with example-data/emails/pattern_map_multi_match.eml.",
+  "steps": [
+    { "type": "extract_attachment_step" },
+    {
+      "type": "foreach",
+      "over": "attachments",
+      "steps": [
+        {
+          "type": "attachment_pattern_map_step",
+          "config": {
+            "pattern_map": "[{\"pattern\":\"*_FINAL.csv\",\"template\":\"Approved_${date}.csv\"},{\"pattern\":\"monthly_*.csv\",\"template\":\"Archive_Copy_${attachment_name}_${date}.csv\"},{\"pattern\":\"*.txt\",\"template\":\"\"}]"
+          }
+        },
+        {
+          "type": "foreach",
+          "over": "matched_attachments",
+          "steps": [
+            {
+              "type": "save_attachment_step",
+              "config": {
+                "destination": "./out/pattern-map-multi-match"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

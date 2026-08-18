@@ -1,6 +1,6 @@
 {
   "name": "Meridian Feed (reporting_xyz translation, pattern_map form)",
-  "description": "Same legacy Perl reporting_xyz()/mail_glob() example from docs/mailglob.txt as the older per-pattern workflow, rewritten with attachment_pattern_map_step + save_attachment_step: matches mail from feed@meridian.com addressed to a meridian.*@ recipient, opens the encrypted daily_feed.zip attachment (tries 'secret1' then 'secret2'), and copies 7 specific files out of it under renamed, date-stamped target names - all 7 pattern=>target pairs live in one attachment_pattern_map_step instead of 7 sibling foreach/attachment_pattern_step/save_attachment_step blocks. attachment_pattern_map_step matches the current attachment against the pairs in order and, on match, stores the resolved target name in context under 'matched_filename' (or stops the branch on no match); the unmodified save_attachment_step then saves using filename_template: \"${matched_filename}\". Use with example-data/emails/meridian_feed.eml (extracts successfully with 'secret2') or example-data/emails/meridian_feed_wrong_password.eml (all passwords fail -> nothing is saved, no crash).",
+  "description": "Same legacy Perl reporting_xyz()/mail_glob() example from docs/mailglob.txt as the older per-pattern workflow, rewritten with attachment_pattern_map_step + save_attachment_step: matches mail from feed@meridian.com addressed to a meridian.*@ recipient, opens the encrypted daily_feed.zip attachment (tries 'secret1' then 'secret2'), and copies 7 specific files out of it under renamed, date-stamped target names - all 7 pattern=>target pairs live in one attachment_pattern_map_step instead of 7 sibling foreach/attachment_pattern_step/save_attachment_step blocks. attachment_pattern_map_step matches the current attachment against every pair in order and, for each match, adds a renamed copy to context under 'matched_attachments' (empty list if nothing matches, and the branch continues rather than stopping); a nested foreach over 'matched_attachments' then runs the unmodified save_attachment_step, which saves using its default filename_template: \"${attachment_name}\". Use with example-data/emails/meridian_feed.eml (extracts successfully with 'secret2') or example-data/emails/meridian_feed_wrong_password.eml (all passwords fail -> nothing is saved, no crash).",
   "steps": [
     { "type": "match_sender_address_step", "config": { "pattern": "feed@meridian\\.com" } },
     { "type": "match_recipient_address_step", "config": { "header": "To", "pattern": "meridian.*@" } },
@@ -28,11 +28,16 @@
               }
             },
             {
-              "type": "save_attachment_step",
-              "config": {
-                "destination": "./out/meridian-feed",
-                "filename_template": "${matched_filename}"
-              }
+              "type": "foreach",
+              "over": "matched_attachments",
+              "steps": [
+                {
+                  "type": "save_attachment_step",
+                  "config": {
+                    "destination": "./out/meridian-feed"
+                  }
+                }
+              ]
             }
           ]
         }

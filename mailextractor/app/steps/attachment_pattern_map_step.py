@@ -1,6 +1,8 @@
 import fnmatch
 import json
 
+import mailextractor.app.steputils as stp
+
 from .base_step import Step
 
 
@@ -8,31 +10,40 @@ class AttachmentPatternMapStep(Step):
 
   """
   Filters the current attachment against an ordered list of filename
-  patterns, each paired with a filename template. On the first match, stores
-  the matched template in context under 'matched_filename' for a following
-  save_attachment_step to consume via filename_template: "${matched_filename}".
-  Stops the workflow branch (no save) if no pattern matches, or if the
-  matched pattern's template half is left empty (pattern with an empty
-  template - matched but explicitly skipped).
+  patterns, each paired with a filename template. Every pattern that matches
+  contributes one renamed copy of the attachment (same content, filename
+  resolved from that pattern's template) to 'output_var', for a following
+  foreach + save_attachment_step to iterate and save. A pattern with an
+  empty template matches but is skipped (no copy produced). 'output_var' is
+  set to an empty list if no pattern matches, and the branch continues
+  rather than stopping.
   Example: '[{"pattern": "*_CashPositions.csv", "template": "Cash_${date}.csv"}, {"pattern": "*_SecurityPositions.csv", "template": "Positions_${date}.csv"}]'
   """
 
   category = "filtering"
   node_type = "default"
   args_in = {"current": "Attachment"}
-  args_out = {"matched_filename": "string"}
+  args_out = {"matched_attachments": "Attachment[]"}
   config_schema = {
       "pattern_map": {
           "type": "json_list",
           "required": True,
           "label": "Pattern -> filename template map",
           "placeholder": '[{"pattern":"*_SecurityPositions.csv","template":"Position_${date}.csv"},{"pattern":"*_CashPositions.csv","template":"Cash_${date}.csv"}]',
-          "description": "Ordered list of {pattern, template} pairs, checked in order; first match wins. Leave the template empty to match but skip saving. Pair with a following save_attachment_step using filename_template: \"${matched_filename}\". Stored as a JSON array of objects.",
+          "description": "Ordered list of {pattern, template} pairs. Every pattern that matches produces one renamed copy of the attachment. Leave a template empty to match but skip that copy. Pair with a following foreach over 'output_var' + save_attachment_step (unmodified - it saves 'current' using filename_template: \"${attachment_name}\" by default). Stored as a JSON array of objects.",
           "columns": [
               {"key": "pattern", "label": "Pattern", "placeholder": "*_A.csv"},
               {"key": "template", "label": "Filename template", "placeholder": "A_${date}.csv"},
           ],
-      }
+      },
+      "output_var": {
+          "type": "string",
+          "required": False,
+          "label": "Output variable name",
+          "default": "matched_attachments",
+          "placeholder": "matched_attachments",
+          "description": "Context key the matched-copy list is stored under, usable in a nested foreach.",
+      },
   }
 
   def execute(self, context):
@@ -41,9 +52,16 @@ class AttachmentPatternMapStep(Step):
 
     filename = attachment.filename or ""
 
+    output_var = self.config.get("output_var") or "matched_attachments"
+
+    matches = []
+    any_pattern_matched = False
+
     for pattern, filename_template in self._parse_pattern_map():
       if not fnmatch.fnmatch(filename, pattern):
         continue
+
+      any_pattern_matched = True
 
       if not filename_template:
         self.logger.info(
@@ -55,8 +73,7 @@ class AttachmentPatternMapStep(Step):
             "workflow_id": context.get("workflow_id"),
             "run_id": context.get("run_id"),
         })
-        context.set("@stop", True)
-        return
+        continue
 
       self.logger.info(
       f"Attachment {filename} MATCHES PATTERN '{pattern}'",
@@ -67,19 +84,20 @@ class AttachmentPatternMapStep(Step):
           "workflow_id": context.get("workflow_id"),
           "run_id": context.get("run_id"),
       })
-      context.set("matched_filename", filename_template)
-      return
+      matches.append(stp.ExtractedAttachment(filename_template, attachment.content))
 
-    self.logger.info(
-    f"Attachment {filename} DOES NOT MATCH ANY PATTERN",
-    extra={
-        "event_type": "NEEDED_ATTACHMENT_NOT_FOUND",
-        "step": self.step_name,
-        "email_id": getattr(context.get("email"), "id", None),
-        "workflow_id": context.get("workflow_id"),
-        "run_id": context.get("run_id"),
-    })
-    context.set("@stop", True)
+    if not any_pattern_matched:
+      self.logger.info(
+      f"Attachment {filename} DOES NOT MATCH ANY PATTERN",
+      extra={
+          "event_type": "NEEDED_ATTACHMENT_NOT_FOUND",
+          "step": self.step_name,
+          "email_id": getattr(context.get("email"), "id", None),
+          "workflow_id": context.get("workflow_id"),
+          "run_id": context.get("run_id"),
+      })
+
+    context.set(output_var, matches)
 
   def _parse_pattern_map(self):
     pattern_map_raw = self.config.get("pattern_map") or "[]"

@@ -367,19 +367,23 @@ patterns, each renamed to its own target, in one step instead of one
 `foreach`/`attachment_pattern_step`/`save_attachment_step` triplet per
 pattern. Matches the current attachment against an ordered list of
 `{pattern, template}` pairs (same `fnmatch` matching as
-`attachment_pattern_step`/`extract_archive_step`). On the first match, the
-template is resolved and stored in context under `matched_filename` for a
-following **unmodified** `save_attachment_step` to consume via
-`filename_template: "${matched_filename}"` — mirrors how `${date}` already
-flows into `save_attachment_step` today (config is re-resolved against
-context right before each step runs), so no change to `save_attachment_step`
+`attachment_pattern_step`/`extract_archive_step`). Every pattern that
+matches — not just the first — contributes one renamed in-memory copy of the
+attachment (same content, filename resolved from that pattern's template) to
+`output_var` (default `matched_attachments`), the same
+`ExtractedAttachment` stand-in shape `extract_archive_step` already produces
+for archive members. A following `foreach` over `output_var` +
+**unmodified** `save_attachment_step` then iterates and saves each copy,
+picking up the resolved name via `save_attachment_step`'s default
+`filename_template: "${attachment_name}"` — no change to `save_attachment_step`
 itself was needed.
 
 Config:
 
-| Field          | Default | Meaning |
-|----------------|---------|---------|
-| `pattern_map`  | —       | required. JSON array of `{pattern, template}` objects, checked in order; first match wins |
+| Field          | Default               | Meaning |
+|----------------|------------------------|---------|
+| `pattern_map`  | —                      | required. JSON array of `{pattern, template}` objects, checked in order; every match contributes a copy |
+| `output_var`   | `matched_attachments`  | Context key the matched-copy list is stored under |
 
 `pattern_map` is stored as a JSON-array-of-objects string (e.g.
 `[{"pattern":"*_A.csv","template":"A_${date}.csv"}]`), but the editor UI
@@ -387,11 +391,12 @@ renders it as a two-column row list (pattern / filename template, add/remove
 per row) instead of a raw text input — see
 `frontend/src/components/DelimitedListEditor.tsx`. Malformed JSON raises a
 `ValueError` from the parser (`_parse_pattern_map()`,
-`attachment_pattern_map_step.py:84-91`) rather than silently misparsing.
+`attachment_pattern_map_step.py:102-109`) rather than silently misparsing.
 
-`@stop` is set (branch stops, nothing saved) when:
+`output_var` is set to an empty list (branch continues, nothing to iterate,
+nothing saved) when:
 - no pattern matches the current attachment's filename, or
-- a pattern matches but its template half is left empty (`pattern=>`) —
+- every pattern that matches has its template half left empty (`pattern=>`) —
   "matched but explicitly skip saving," mirroring `mail_glob`'s `select` hash
   supporting an empty-string target (`docs/mailglob.txt`).
 
@@ -409,11 +414,17 @@ worked example: `example-data/workflows/meridian_feed.json`):
           { "type": "attachment_pattern_map_step", "config": {
               "pattern_map": "[{\"pattern\":\"*_NODE1_SecurityPositions.csv\",\"template\":\"FEED_PositionFile_${date}.csv\"},{\"pattern\":\"*_NODE2_SecurityPositions.csv\",\"template\":\"FEED_PositionFile_2_${date}.csv\"}]"
           } },
-          { "type": "save_attachment_step", "config": {
-              "destination": "./out/meridian-feed",
-              "filename_template": "${matched_filename}"
-          } }
+          { "type": "foreach", "over": "matched_attachments", "steps": [
+              { "type": "save_attachment_step", "config": {
+                  "destination": "./out/meridian-feed"
+              } }
+          ]}
       ]}
   ]}
 ]
 ```
+
+Because every match produces its own copy, one archive member can now match
+several `pattern_map` entries and be saved once per match (e.g. once as a
+dated feed file and again as an audit copy under a different name) — the
+old first-match-wins behavior only ever produced a single save.
