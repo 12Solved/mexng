@@ -1,4 +1,5 @@
 import fnmatch
+import json
 import os
 import subprocess
 import tempfile
@@ -33,12 +34,11 @@ class ExtractArchiveStep(Step):
           "description": "Unix-style wildcard used to decide whether the current attachment is an archive.",
       },
       "passwords": {
-          "type": "delimited_list",
+          "type": "json_list",
           "required": False,
           "label": "Passwords",
-          "placeholder": "secret1,secret2",
-          "description": "Tried in order after an unencrypted attempt. Leave blank for unencrypted archives only. No escaping: a password containing a comma will be split into multiple wrong passwords.",
-          "item_delimiter": ",",
+          "placeholder": '["secret1","secret2"]',
+          "description": "Tried in order after an unencrypted attempt. Leave blank for unencrypted archives only. Stored as a JSON array of strings.",
           "columns": [{"key": "value", "label": "Password", "mask": True}],
       },
       "output_var": {
@@ -88,7 +88,11 @@ class ExtractArchiveStep(Step):
       context.set(output_var, [])
       return
 
-    passwords = [p.strip() for p in (self.config.get("passwords") or "").split(",") if p.strip()]
+    passwords_raw = self.config.get("passwords") or "[]"
+    try:
+      passwords = json.loads(passwords_raw)
+    except json.JSONDecodeError as exc:
+      raise ValueError(f"ExtractArchiveStep: 'passwords' must be a JSON array of strings, got {passwords_raw!r}.") from exc
 
     extracted = self._extract(
         attachment.content, filename, passwords, max_depth, max_seconds, archive_pattern, context, email,

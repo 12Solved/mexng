@@ -10,32 +10,35 @@ interface DelimitedListEditorProps {
 const defaultColumns: DelimitedListColumn[] = [{ key: 'value', label: 'Value' }];
 
 const parseRows = (value: string, field: ConfigSchemaField): string[][] => {
-  const itemDelimiter = field.item_delimiter ?? ',';
-  const pairDelimiter = field.pair_delimiter;
   const columns = field.columns ?? defaultColumns;
 
-  const items = (value ?? '').split(itemDelimiter).map(s => s.trim()).filter(s => s.length > 0);
+  let items: unknown[] = [];
+  try {
+    const parsed = value ? JSON.parse(value) : [];
+    if (Array.isArray(parsed)) items = parsed;
+  } catch {
+    // Malformed JSON (e.g. a not-yet-migrated or hand-edited value) falls back to a blank row.
+  }
   if (items.length === 0) return [columns.map(() => '')];
 
+  if (columns.length === 1) {
+    return items.map(item => [String(item ?? '')]);
+  }
   return items.map(item => {
-    const parts = pairDelimiter ? item.split(pairDelimiter) : [item];
-    if (parts.length > columns.length) {
-      const head = parts.slice(0, columns.length - 1);
-      const tail = parts.slice(columns.length - 1).join(pairDelimiter as string);
-      return [...head, tail].map(p => p.trim());
-    }
-    while (parts.length < columns.length) parts.push('');
-    return parts.map(p => p.trim());
+    const obj = (item ?? {}) as Record<string, unknown>;
+    return columns.map(col => String(obj[col.key] ?? ''));
   });
 };
 
 const serializeRows = (rows: string[][], field: ConfigSchemaField): string => {
-  const itemDelimiter = field.item_delimiter ?? ',';
-  const pairDelimiter = field.pair_delimiter;
-  return rows
-    .filter(row => row.some(cell => cell.trim().length > 0))
-    .map(row => (pairDelimiter ? row.join(pairDelimiter) : row[0] ?? ''))
-    .join(itemDelimiter);
+  const columns = field.columns ?? defaultColumns;
+  const nonBlankRows = rows.filter(row => row.some(cell => cell.trim().length > 0));
+  if (nonBlankRows.length === 0) return '';
+
+  if (columns.length === 1) {
+    return JSON.stringify(nonBlankRows.map(row => row[0] ?? ''));
+  }
+  return JSON.stringify(nonBlankRows.map(row => Object.fromEntries(columns.map((col, i) => [col.key, row[i] ?? '']))));
 };
 
 const inputClass =

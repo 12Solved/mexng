@@ -13,7 +13,7 @@
           "type": "extract_archive_step",
           "config": {
             "archive_pattern": "*.zip",
-            "passwords": "secret1,secret2",
+            "passwords": "[\"secret1\",\"secret2\"]",
             "output_var": "extracted_attachments"
           }
         },
@@ -24,7 +24,7 @@
             {
               "type": "attachment_pattern_map_step",
               "config": {
-                "pattern_map": "*_NODE1_SecurityPositions.csv=>FEED_PositionFile_${date}.csv;*_NODE1_CashPositions.csv=>FEED_CashFile_${date}.csv;*_NODE1_ForeignExchangeInventory.txt=>FEED_ForeignExchangeInventory_${date}.csv;*_NODE2_SecurityPositions.csv=>FEED_PositionFile_2_${date}.csv;*_NODE2_CashPositions.csv=>FEED_CashFile_2_${date}.csv;*_NODE1_ForexConf.csv=>FEED_ForexConf_${date}.csv;*_NODE1_TDForwardContracts.xml=>FEED_TDForwardContracts_${date}.xml"
+                "pattern_map": "[{\"pattern\":\"*_NODE1_SecurityPositions.csv\",\"template\":\"FEED_PositionFile_${date}.csv\"},{\"pattern\":\"*_NODE1_CashPositions.csv\",\"template\":\"FEED_CashFile_${date}.csv\"},{\"pattern\":\"*_NODE1_ForeignExchangeInventory.txt\",\"template\":\"FEED_ForeignExchangeInventory_${date}.csv\"},{\"pattern\":\"*_NODE2_SecurityPositions.csv\",\"template\":\"FEED_PositionFile_2_${date}.csv\"},{\"pattern\":\"*_NODE2_CashPositions.csv\",\"template\":\"FEED_CashFile_2_${date}.csv\"},{\"pattern\":\"*_NODE1_ForexConf.csv\",\"template\":\"FEED_ForexConf_${date}.csv\"},{\"pattern\":\"*_NODE1_TDForwardContracts.xml\",\"template\":\"FEED_TDForwardContracts_${date}.xml\"}]"
               }
             },
             {

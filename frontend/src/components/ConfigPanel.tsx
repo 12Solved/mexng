@@ -159,7 +159,7 @@ const ConfigPanel = ({ node, stepsMeta, nodes, edges, contextVars, onChange, onC
                     />
                     <div className="text-[10px] text-gray-400 dark:text-slate-500">Interpreted as UTC</div>
                   </div>
-                ) : field.type === 'delimited_list' ? (
+                ) : field.type === 'json_list' ? (
                   <DelimitedListEditor
                     key={`${node.id}:${key}`}
                     field={field}

@@ -25,8 +25,6 @@ export interface ConfigSchemaField {
   default?: string;
   options?: string[];
   template_vars?: Record<string, string>;
-  item_delimiter?: string;
-  pair_delimiter?: string;
   columns?: DelimitedListColumn[];
 }
 

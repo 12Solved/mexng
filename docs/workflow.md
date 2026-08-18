@@ -319,17 +319,17 @@ Config:
 | Field             | Default                | Meaning |
 |-------------------|-------------------------|---------|
 | `archive_pattern` | `*.zip`                 | Unix-style wildcard deciding whether `current` is treated as an archive |
-| `passwords`       | (empty)                 | Comma-separated list, tried in order after an unencrypted attempt |
+| `passwords`       | (empty)                 | JSON array of strings, tried in order after an unencrypted attempt |
 | `output_var`      | `extracted_attachments` | Context key the extracted member list is stored under |
 | `max_depth`       | `5`                     | Caps recursion into archives found inside archives (zip-of-zip) |
 | `max_seconds`     | `60`                    | Aborts a single archive's extraction attempt if `7z` runs longer than this |
 
-`passwords` is stored as the comma-separated string above, but the editor UI
-renders it as a one-column row list (add/remove a password per row) instead
-of a raw text input — see `frontend/src/components/DelimitedListEditor.tsx`.
-There is no escaping: a password containing a comma is split into multiple
-wrong passwords, both in the parser (`extract_archive_step.py:91`) and in
-the row editor, which re-splits on every reload.
+`passwords` is stored as a JSON-array-of-strings string (e.g.
+`["secret1","secret2"]`), but the editor UI renders it as a one-column row
+list (add/remove a password per row) instead of a raw text input — see
+`frontend/src/components/DelimitedListEditor.tsx`. Malformed JSON raises a
+`ValueError` from the parser (`extract_archive_step.py:91-95`) rather than
+silently misparsing.
 
 Requires the `7z` binary on `PATH` (`p7zip-full` in the Docker image); a
 missing binary logs a distinct `ARCHIVE_TOOL_MISSING` event rather than
@@ -343,7 +343,7 @@ Example — mirrors `reporting_xyz`'s encrypted-zip-to-CSV feed from
 [
   { "type": "extract_attachment_step" },
   { "type": "foreach", "over": "attachments", "steps": [
-      { "type": "extract_archive_step", "config": { "passwords": "secret1,secret2" } },
+      { "type": "extract_archive_step", "config": { "passwords": "[\"secret1\",\"secret2\"]" } },
       { "type": "foreach", "over": "extracted_attachments", "steps": [
           { "type": "attachment_pattern_step", "config": { "pattern": "*_NODE1_SecurityPositions.csv" } },
           { "type": "save_attachment_step", "config": {
@@ -366,7 +366,7 @@ Covers the case `attachment_pattern_step` doesn't: multiple filename
 patterns, each renamed to its own target, in one step instead of one
 `foreach`/`attachment_pattern_step`/`save_attachment_step` triplet per
 pattern. Matches the current attachment against an ordered list of
-`pattern=>filename_template` pairs (same `fnmatch` matching as
+`{pattern, template}` pairs (same `fnmatch` matching as
 `attachment_pattern_step`/`extract_archive_step`). On the first match, the
 template is resolved and stored in context under `matched_filename` for a
 following **unmodified** `save_attachment_step` to consume via
@@ -379,16 +379,15 @@ Config:
 
 | Field          | Default | Meaning |
 |----------------|---------|---------|
-| `pattern_map`  | —       | required. Semicolon-separated `pattern=>filename_template` pairs, checked in order; first match wins |
+| `pattern_map`  | —       | required. JSON array of `{pattern, template}` objects, checked in order; first match wins |
 
-`pattern_map` is stored as the flat string above, but the editor UI renders
-it as a two-column row list (pattern / filename template, add/remove per
-row) instead of a raw text input — see
-`frontend/src/components/DelimitedListEditor.tsx`.
-There is no escaping: a `;` or `=>` inside a pattern or template is
-misread as a separator, both in the parser (`_parse_pattern_map()`,
-`attachment_pattern_map_step.py:79-87`) and in the row editor, which
-re-splits on every reload.
+`pattern_map` is stored as a JSON-array-of-objects string (e.g.
+`[{"pattern":"*_A.csv","template":"A_${date}.csv"}]`), but the editor UI
+renders it as a two-column row list (pattern / filename template, add/remove
+per row) instead of a raw text input — see
+`frontend/src/components/DelimitedListEditor.tsx`. Malformed JSON raises a
+`ValueError` from the parser (`_parse_pattern_map()`,
+`attachment_pattern_map_step.py:84-91`) rather than silently misparsing.
 
 `@stop` is set (branch stops, nothing saved) when:
 - no pattern matches the current attachment's filename, or
@@ -405,10 +404,10 @@ worked example: `example-data/workflows/meridian_feed.json`):
 [
   { "type": "extract_attachment_step" },
   { "type": "foreach", "over": "attachments", "steps": [
-      { "type": "extract_archive_step", "config": { "passwords": "secret1,secret2" } },
+      { "type": "extract_archive_step", "config": { "passwords": "[\"secret1\",\"secret2\"]" } },
       { "type": "foreach", "over": "extracted_attachments", "steps": [
           { "type": "attachment_pattern_map_step", "config": {
-              "pattern_map": "*_NODE1_SecurityPositions.csv=>FEED_PositionFile_${date}.csv;*_NODE2_SecurityPositions.csv=>FEED_PositionFile_2_${date}.csv"
+              "pattern_map": "[{\"pattern\":\"*_NODE1_SecurityPositions.csv\",\"template\":\"FEED_PositionFile_${date}.csv\"},{\"pattern\":\"*_NODE2_SecurityPositions.csv\",\"template\":\"FEED_PositionFile_2_${date}.csv\"}]"
           } },
           { "type": "save_attachment_step", "config": {
               "destination": "./out/meridian-feed",

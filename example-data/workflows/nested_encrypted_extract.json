@@ -11,7 +11,7 @@
           "type": "extract_archive_step",
           "config": {
             "archive_pattern": "*.zip",
-            "passwords": "outer2026,inner2026",
+            "passwords": "[\"outer2026\",\"inner2026\"]",
             "output_var": "extracted_attachments"
           }
         },
