@@ -28,7 +28,10 @@ export async function getAllLogs(
   return res.data;
 }
 
-export async function getAllLogFilters() {
-  const res = await api.get('/logs/filters')
+export async function getAllLogFilters(runId?: string) {
+  const params = new URLSearchParams();
+  if (runId != null) params.set('run_id', runId);
+  const qs = params.toString();
+  const res = await api.get(`/logs/filters${qs ? `?${qs}` : ''}`)
   return res.data;
 }

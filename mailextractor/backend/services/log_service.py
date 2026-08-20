@@ -133,5 +133,8 @@ def get_logs(
     return paginate(db, query)
 
 
-def get_log_filters(db: Session):
-    return db.execute(select(distinct(models.Log.event_type))).scalars().all()
+def get_log_filters(db: Session, run_id: str | None = None):
+    query = select(distinct(models.Log.event_type))
+    if run_id:
+        query = query.where(models.Log.run_id == int(run_id))
+    return db.execute(query).scalars().all()

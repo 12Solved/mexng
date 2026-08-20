@@ -41,5 +41,5 @@ def read_logs(
 
 
 @router.get("/filters")
-def log_filters(db: Session = Depends(get_db)):
-    return log_service.get_log_filters(db)
+def log_filters(db: Session = Depends(get_db), run_id: str | None = Query(None)):
+    return log_service.get_log_filters(db, run_id=run_id)
