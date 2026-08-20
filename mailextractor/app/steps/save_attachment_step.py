@@ -78,10 +78,26 @@ class SaveAttachmentStep(Step):
         # Resolve filename
         new_filename = self.resolver.resolve(filename_template, template_context)
 
+        target_path = os.path.join(resolved_destination, new_filename)
+        try:
+            validated_path = stp.resolve_and_validate_path(target_path)
+        except Exception as e:
+            self.logger.error(
+                f"Refusing to save outside allowed path: {str(e)}",
+                extra={
+                    "event_type": "PATH_JAIL_VIOLATION",
+                    "step": self.step_name,
+                    "attachment_id": getattr(attachment, "id", None),
+                    "email_id": getattr(email, "id", None),
+                    "workflow_id": context.get("workflow_id"),
+                    "run_id": context.get("run_id", None),
+                }
+            )
+            raise
+
         if context.get("@dry_run"):
-            resolved_path = os.path.join(resolved_destination, new_filename)
             self.logger.info(
-                f"Dry-run: would save attachment to {resolved_path}",
+                f"Dry-run: would save attachment to {validated_path}",
                 extra={
                     "event_type": "DRY_RUN_FILE_SAVE",
                     "step": self.step_name,
@@ -91,14 +107,12 @@ class SaveAttachmentStep(Step):
                     "run_id": context.get("run_id", None),
                 }
             )
-            context.set("saved_path", resolved_path)
+            context.set("saved_path", validated_path)
             return
 
         try:
             new_path = stp.secure_save_file(
-                            os.path.join(
-                                resolved_destination,
-                                new_filename),
+                            target_path,
                             attachment.content,
                             create_parent=True)
 
