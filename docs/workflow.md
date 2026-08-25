@@ -122,6 +122,30 @@ Examples:
 * ```${attachment_name}-data```
 * ```${attachment_name}-${date}-${email_sender}```
 
+## Iteration (`foreach_step`)
+
+`ForEachStep` reads a list-typed variable from context (picked via the
+`collection` config field) and runs a nested sub-workflow once per item.
+
+On every iteration it sets these reserved context keys:
+
+| Variable          | Type        | Meaning |
+|-------------------|-------------|---------|
+| `current`         | `Attachment`| The item for this iteration |
+| `attachment_name` | `string`    | `current`'s filename without extension |
+| `ext`             | `string`    | `current`'s file extension, including the leading `.` |
+| `content_type`    | `string`    | `current`'s MIME type |
+| `attachment_size` | `int`       | `current`'s size in bytes |
+
+These key names are fixed — unlike `collection`, they are not something the
+user picks or renames. They are only meaningful for steps nested *inside*
+the ForEach container: they don't exist yet before the loop, and are not
+carried forward to steps after it closes.
+
+`@stop` is reset to `False` before each iteration (and again after the loop
+finishes), so one rejected item doesn't block the rest of the collection —
+see [Magic Variables](magic_variables.md).
+
 ## Date computation (`date_step`)
 
 `DateStep` computes a date/time and stores it in context as a string, so it
