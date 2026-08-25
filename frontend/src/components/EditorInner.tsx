@@ -54,9 +54,10 @@ interface EditorInnerProps {
   stepsMeta: StepMeta[];
   contextVars: ContextVars;
   workflow: Workflow | null;
+  onSaved: (saved: Workflow) => void;
 }
 
-const EditorInner = ({ stepsMeta, contextVars, workflow }: EditorInnerProps) => {
+const EditorInner = ({ stepsMeta, contextVars, workflow, onSaved }: EditorInnerProps) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyFlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNode, setSelectedNode] = useState<AnyFlowNode | null>(null);
@@ -354,15 +355,15 @@ const EditorInner = ({ stepsMeta, contextVars, workflow }: EditorInnerProps) => 
       );
       return;
     }
+    const isUpdate = Boolean(workflow?.id);
     setSaving(true);
     try {
       const json = flowToWorkflowJson(nodes, edges);
-      if (workflow?.id) {
-        await updateWorkflow(workflow.id, workflowName, json, workflowDescription);
-      } else {
-        await createWorkflow(workflowName, json, workflowDescription);
-      }
-      navigate('/workflow');
+      const saved = isUpdate
+        ? await updateWorkflow(workflow!.id, workflowName, json, workflowDescription)
+        : await createWorkflow(workflowName, json, workflowDescription);
+      onSaved(saved);
+      toast.success(isUpdate ? 'Workflow saved.' : 'Workflow created.');
     } catch (e) {
       console.error('Save failed', e);
       toast.error('Save failed. Please try again.');
