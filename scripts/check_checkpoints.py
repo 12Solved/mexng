@@ -42,6 +42,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from mailextractor import models
 from mailextractor.app.app_logging.setup_logging import setup_logging
 from mailextractor.app.config import config
+from notify import notify
+
 
 engine = create_engine(config.DATABASE_URL)
 Session = sessionmaker(bind=engine)
@@ -70,6 +72,7 @@ def check_once():
             return
 
         updated = 0
+        newly_missed = []
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         for cp in checkpoints:
             if cp.last_seen_at is None:
@@ -95,10 +98,24 @@ def check_once():
                 new_status = "ok" if cp.last_seen_at is not None else "never_seen"
 
             if cp.status != new_status:
+                if new_status == "missed":
+                    newly_missed.append((cp.name, cp.next_expected_at))
                 cp.status = new_status
                 updated += 1
 
         session.commit()
+
+        if newly_missed:
+            body = "\n".join(
+                f"- {name}: deadline passed at {deadline}"
+                for name, deadline in sorted(newly_missed)
+            )
+            notify(
+                subject=f"{len(newly_missed)} checkpoint(s) missed",
+                body=body,
+                recipients="",
+                meta={"count": len(newly_missed)},
+            )
 
         logger.info(
             f"Checkpoint check complete - {updated} status(es) updated",

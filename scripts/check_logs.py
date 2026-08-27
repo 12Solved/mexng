@@ -100,6 +100,7 @@ def check_once(state_file: str):
             notify(
                 subject=f"{len(alert_rows)} alert-worthy log(s) detected",
                 body=_build_digest(alert_rows),
+                recipients="",
                 meta={"count": len(alert_rows)},
             )
 
