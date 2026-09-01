@@ -254,20 +254,38 @@ class IMAPProvider(BaseProvider):
         if self._logger: self._logger.info(f"Fetched {n_emails} messages. Skip-listed {n_skip_listed}.", extra={"event_type": "IMAP_FETCH_COMPLETE", "count": n_emails, "skip_listed": n_skip_listed})
 
     def _fetch_uids(self, dt: Optional[datetime] = None) -> list[int]:
-        try:
-            if dt is None:
-                criteria = "ALL"
-            else:
-                # IMAP SINCE format: 01-Jan-2026 (day has no leading zero requirement,
-                # but %d gives zero-padded which servers accept)
-                criteria = f'SINCE {dt.strftime("%d-%b-%Y")}'
-            status, data = self._connection.uid("search", None, criteria)
-            uids = [int(u) for u in data[0].split()]
-            if self._logger: self._logger.info(f"Found {len(uids)} new UIDs (since {dt})", extra={"event_type": "IMAP_UIDS_RETRIEVED", "count": len(uids)})
-        except Exception as e:
-            if self._logger: self._logger.exception(f"UID SEARCH failed with filter '{criteria}'", extra={"event_type": "IMAP_SEARCH_FAILED", "error": str(e)})
-            raise
-        return uids
+        if dt is None:
+            criteria = "ALL"
+        else:
+            # IMAP SINCE format: 01-Jan-2026 (day has no leading zero requirement,
+            # but %d gives zero-padded which servers accept)
+            criteria = f'SINCE {dt.strftime("%d-%b-%Y")}'
+
+        # Same retry treatment as the FETCH step: a SEARCH failure is an
+        # infrastructure/transient problem (unlike a parse failure, which is
+        # a data problem and correctly crashes loud), so it degrades to "no
+        # new mail this cycle" rather than aborting the whole poll — the
+        # checkpoint doesn't move, so nothing is lost, just deferred.
+        max_retries = self._max_retries
+        for attempt in range(max_retries):
+            try:
+                status, data = self._connection.uid("search", None, criteria)
+                if status != "OK":
+                    if self._logger: self._logger.warning(f"UID SEARCH failed with filter '{criteria}', attempt {attempt+1}/{max_retries}", extra={"event_type": "IMAP_SEARCH_FAILED"})
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)
+                        continue
+                    break
+                uids = [int(u) for u in data[0].split()]
+                if self._logger: self._logger.info(f"Found {len(uids)} new UIDs (since {dt})", extra={"event_type": "IMAP_UIDS_RETRIEVED", "count": len(uids)})
+                return uids
+            except Exception:
+                if self._logger: self._logger.exception(f"UID SEARCH failed with filter '{criteria}', attempt {attempt+1}/{max_retries}", extra={"event_type": "IMAP_SEARCH_ERROR"})
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+
+        if self._logger: self._logger.warning(f"UID SEARCH exhausted retries with filter '{criteria}' — treating as no new mail this cycle", extra={"event_type": "IMAP_SEARCH_EXHAUSTED"})
+        return []
 
     def _parse_message(self, response_line: bytes, raw_email: bytes) -> dict | None:
         try:

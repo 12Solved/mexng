@@ -2,6 +2,25 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## fix: IMAP UID SEARCH failures crashed instead of degrading gracefully (2026-09-01)
+
+`IMAPProvider._fetch_uids` never checked the `status` returned by UID SEARCH
+and unconditionally indexed `data[0]`; any exception (including the one that
+caused) was logged then re-raised, aborting the whole poll. Its sibling FETCH
+step already retries transient failures with backoff — SEARCH had no such
+treatment despite being the same class of infrastructure/transient problem
+(unlike a parse failure, which is a data problem and correctly crashes loud).
+
+Gave SEARCH the same 3x exponential-backoff retry as FETCH; if it's still
+failing after retries, logs a warning and returns `[]` ("no new mail this
+cycle") instead of crashing — the checkpoint doesn't move, so nothing is
+lost, just deferred to the next poll.
+
+New `tests/test_imap_search_failure.py` (mocked IMAP connection): a
+persistent non-OK status degrades to `[]` without raising, a persistent
+exception does too, and a transient failure that recovers on retry returns
+the real UIDs. Full suite: 19/19.
+
 ## fix: require explicit "none" to disable checkpointing (2026-09-01)
 
 `CHECKPOINT_PATH=""` previously meant "no checkpoint, fetch everything" —
