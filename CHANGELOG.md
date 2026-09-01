@@ -2,6 +2,26 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## refactor: de-duplicate IMAP/GLOB hashing and skip filtering (2026-09-01)
+
+Both providers' `_parse_message` independently duplicated the exact same
+dedup-hash formula and Date-header parsing, and both `iterate_mails`
+independently re-implemented the same dt/last-hash/skip_hashes checkpoint
+filtering — a future change to either risked being applied to only one
+provider, silently breaking cross-provider dedup/checkpoint compatibility.
+
+Factored both into shared `BaseProvider` methods: `_parse_date_header()` and
+`_compute_hash()` (used by both `_parse_message`s), and `_classify_mail()`
+(used by both `iterate_mails`, returns `"already_seen"`/`"skip_listed"`/`None`).
+As a side effect, IMAP's fetch-summary log now also reports a `Skipped`
+count for already-seen messages, matching GLOB's — previously only GLOB
+tracked that. Also removed a leftover dead `date = date` no-op statement in
+`IMAPProvider._parse_message`.
+
+Purely a refactor — no test changes needed, since the existing suite already
+exercises both providers' filtering paths; all 23 pass unchanged. Verified
+live against the real mailbox too: `Fetched 0 messages. Skipped 2. Skip-listed 0.`
+
 ## feat: escalate log level after repeated consecutive --loop failures (2026-09-01)
 
 `_run_loop()`'s `job()` caught every `poll()` failure identically — logged

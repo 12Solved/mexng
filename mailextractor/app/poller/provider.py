@@ -115,6 +115,35 @@ class BaseProvider(ABC):
                 json.dump({"dt": None, "hash": None, "skip_hashes": []}, f)
             return {"dt": None, "hash": None, "skip_hashes": []}
 
+    def _parse_date_header(self, date_str: Optional[str], event_type: str) -> Optional[datetime]:
+        """Shared by both providers' _parse_message — an unparseable Date
+        header just means date=None (poll() crashes loud on that), not a
+        provider-level failure."""
+        if not date_str:
+            return None
+        try:
+            return parsedate_to_datetime(date_str)
+        except Exception:
+            if self._logger: self._logger.warning(f"Could not parse date: {date_str}", extra={"event_type": event_type})
+            return None
+
+    @staticmethod
+    def _compute_hash(subject: Optional[str], sender: Optional[str], recipient: Optional[str], date: Optional[datetime]) -> str:
+        """The dedup/checkpoint key — shared so both providers can never diverge on it."""
+        return hashlib.sha256(f"{subject}|{sender}|{recipient}|{date.isoformat() if date else ''}".encode()).hexdigest()
+
+    @staticmethod
+    def _classify_mail(parsed: MailDict, dt: Optional[datetime], last_hash: Optional[str], skip_hashes: set) -> Optional[str]:
+        """Checkpoint-state classification shared by both providers' iterate_mails:
+        None means yield it, otherwise the reason it's being skipped."""
+        if dt and parsed['date'] and (parsed['date'] < dt):
+            return "already_seen"
+        if last_hash and (last_hash == parsed['hash']):
+            return "already_seen"
+        if parsed['hash'] in skip_hashes:
+            return "skip_listed"
+        return None
+
     @abstractmethod
     def iterate_mails(self) -> Iterator[MailDict]:
         ...
@@ -185,6 +214,7 @@ class IMAPProvider(BaseProvider):
         batch_size = self._batch_size
         max_retries = self._max_retries
         n_emails = 0
+        n_skipped = 0
         n_skip_listed = 0
         for i in range(0, len(uids), batch_size):
             batch = uids[i:i + batch_size]
@@ -236,12 +266,11 @@ class IMAPProvider(BaseProvider):
                     continue
 
                 parsed = self._parse_message(item[0], item[1])
-                # date can be None; unguarded "< dt" raised TypeError here before
-                if dt and parsed['date'] and (parsed['date'] < dt):
+                reason = self._classify_mail(parsed, dt, hash, skip_hashes)
+                if reason == "already_seen":
+                    n_skipped += 1
                     continue
-                if hash and (hash == parsed['hash']):
-                    continue
-                if parsed['hash'] in skip_hashes:
+                if reason == "skip_listed":
                     n_skip_listed += 1
                     if self._logger: self._logger.info(
                         f"Skipping skip-listed email (hash={parsed['hash']})",
@@ -251,7 +280,10 @@ class IMAPProvider(BaseProvider):
 
                 yield parsed
                 n_emails = n_emails + 1
-        if self._logger: self._logger.info(f"Fetched {n_emails} messages. Skip-listed {n_skip_listed}.", extra={"event_type": "IMAP_FETCH_COMPLETE", "count": n_emails, "skip_listed": n_skip_listed})
+        if self._logger: self._logger.info(
+            f"Fetched {n_emails} messages. Skipped {n_skipped}. Skip-listed {n_skip_listed}.",
+            extra={"event_type": "IMAP_FETCH_COMPLETE", "count": n_emails, "skipped": n_skipped, "skip_listed": n_skip_listed}
+        )
 
     def _fetch_uids(self, dt: Optional[datetime] = None) -> list[int]:
         if dt is None:
@@ -294,23 +326,16 @@ class IMAPProvider(BaseProvider):
 
             msg = message_from_bytes(raw_email)
 
-            date = None
-            date_str = msg.get("Date")
-            if date_str:
-                try:
-                    date = parsedate_to_datetime(date_str)
-                except Exception:
-                    if self._logger: self._logger.warning(f"Could not parse date: {date_str}", extra={"event_type": "IMAP_DATE_PARSE_FAILED"})
+            date = self._parse_date_header(msg.get("Date"), "IMAP_DATE_PARSE_FAILED")
 
             attachments, html_body, plain_body = self._extract_message_parts(msg)
 
             subject = self._decode_header_value(msg.get("Subject"))
             sender = self._decode_header_value(msg.get("From"))
             recipient = self._decode_header_value(msg.get("To"))
-            date = date
-    
-            hash = hashlib.sha256(f"{subject}|{sender}|{recipient}|{date.isoformat() if date else ''}".encode()).hexdigest()
-            
+
+            hash = self._compute_hash(subject, sender, recipient, date)
+
             return {
                 "message_id": msg.get("Message-ID"),
                 "subject": subject,
@@ -423,13 +448,11 @@ class GLOBProvider(BaseProvider):
                 continue
             try:
                 parsed = self._parse_message(email_path)
-                if dt and parsed['date'] and parsed['date'] < dt:
+                reason = self._classify_mail(parsed, dt, hash, skip_hashes)
+                if reason == "already_seen":
                     skipped_count += 1
                     continue
-                if hash and hash == parsed['hash']:
-                    skipped_count += 1
-                    continue
-                if parsed['hash'] in skip_hashes:
+                if reason == "skip_listed":
                     skip_listed_count += 1
                     if self._logger: self._logger.info(
                         f"Skipping skip-listed email (hash={parsed['hash']})",
@@ -491,15 +514,9 @@ class GLOBProvider(BaseProvider):
         sender = msg.get('From')
         recipient = msg.get('To')
 
-        date = None
-        date_str = msg.get('Date')
-        if date_str:
-            try:
-                date = parsedate_to_datetime(date_str)
-            except Exception:
-                if self._logger: self._logger.warning(f"Could not parse date: {date_str}", extra={"event_type": "GLOB_DATE_PARSE_FAILED"})
+        date = self._parse_date_header(msg.get('Date'), "GLOB_DATE_PARSE_FAILED")
 
-        hash = hashlib.sha256(f"{subject}|{sender}|{recipient}|{date.isoformat() if date else ''}".encode()).hexdigest()
+        hash = self._compute_hash(subject, sender, recipient, date)
 
         res = {
             "message_id": msg.get('Message-ID'),
