@@ -143,7 +143,15 @@ Run them with `make test`, or directly: `pytest tests/`.
    # Edit .env.prod with your production settings
    ```
 
-2. Start the application:
+2. Create and own the `data` directory the backend bind-mounts for persistent
+   state (currently just the poller's `checkpoint.txt` — see `CHECKPOINT_PATH`
+   in `.env.prod.example`). Without this, the checkpoint lives inside the
+   container and is lost on every redeploy:
+   ```bash
+   mkdir -p data && chown 1000:1000 data  # 1000:1000 matches the mex user baked into Dockerfile
+   ```
+
+3. Start the application:
    ```bash
    docker-compose -f docker-compose.prod.yml up -d
    ```

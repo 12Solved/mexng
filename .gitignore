@@ -52,3 +52,6 @@ _dev_*
 /dev.ipynb
 /checkpoint.txt
 /read_email_checkpoint.txt
+
+# Prod host bind mount for the backend's /app/data (see docker-compose.prod.yml)
+/data/

@@ -17,6 +17,12 @@ services:
     restart: no
     command: ["./scripts/startup.sh"]
     env_file: .env.prod
+    volumes:
+      # Bind mount (not a named volume) so CHECKPOINT_PATH's poller state
+      # survives redeploys AND is directly viewable/editable on the host.
+      # First deploy: mkdir -p data && chown 1000:1000 data (matches the
+      # fixed mex UID/GID baked into Dockerfile).
+      - ./data:/app/data
     depends_on:
       db:
         condition: service_healthy

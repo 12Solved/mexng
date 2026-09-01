@@ -2,6 +2,33 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## fix: persist poller checkpoint across prod redeploys (2026-09-01)
+
+Review item (`_dev_review.txt` #15, flagged HIGHEST PRIORITY): the prod
+backend stored `checkpoint.txt` inside the container with no volume, so every
+redeploy lost it, IMAP's `SINCE` filter fell back to fetching the entire
+mailbox history, and (no unique constraint on `Email.message_id`) that meant
+mass-duplicate inserts on every redeploy.
+
+- `Dockerfile`: pinned the `mex` user to a fixed `uid=1000 gid=1000` (was
+  `-r`/auto-assigned, and conflicted with `-r`'s system-UID range once pinned
+  — dropped `-r`) so an operator can `chown` a host bind mount to a known
+  owner ahead of time. Added `mkdir -p /app/data`.
+- `docker-compose.prod.yml`: backend service now bind-mounts `./data` (host)
+  to `/app/data` (container) — a directory mount rather than mounting the
+  checkpoint file directly, so Group 2's later skip-list data has somewhere
+  to live alongside it, and so a missing host file doesn't trip Docker's
+  create-a-directory-instead footgun.
+- `.env.prod.example`: added `CHECKPOINT_PATH=/app/data/checkpoint.txt` —
+  previously unset, defaulting to relative `checkpoint.txt` (i.e.
+  `/app/checkpoint.txt`), which wasn't under any mount.
+- `.gitignore`: added `/data/` for the host-side bind mount contents.
+- `README.md`: documented `mkdir -p data && chown 1000:1000 data` as a
+  required first-deploy step under Production Deployment.
+
+Verified by building the image and bind-mounting a host dir: the non-root
+`mex` user (uid 1000) successfully wrote `checkpoint.txt` into it.
+
 ## feat: add poll/process pipeline tests (2026-09-01)
 
 **tests/ (new)**
