@@ -15,7 +15,10 @@ router = APIRouter(prefix="/emails", tags=["emails"])
 
 @router.post("/")
 def read_emails(db: Session = Depends(get_db), body: schemas.EmailSearchBody = Body(default=schemas.EmailSearchBody())) -> Page[schemas.Email]:
-    return email_service.get_emails(db, body.query, body.workflow_id, body.run_state)
+    try:
+        return email_service.get_emails(db, body.query, body.workflow_id, body.run_state)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{email_id}")

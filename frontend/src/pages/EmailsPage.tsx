@@ -13,9 +13,12 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 
-const stringOperators = defaultOperators.filter(op =>
-  ['contains', 'doesNotContain', 'beginsWith', 'endsWith', '=', '!='].includes(op.name)
-);
+const stringOperators = [
+  ...defaultOperators.filter(op =>
+    ['contains', 'doesNotContain', 'beginsWith', 'endsWith', '=', '!='].includes(op.name)
+  ),
+  { name: 'matches', label: 'matches' },
+];
 const dateOperators = defaultOperators.filter(op =>
   ['=', '<', '>', '<=', '>='].includes(op.name)
 );
@@ -66,6 +69,7 @@ const STATE_LABELS: Record<string, string> = {
 const EmailsPage = () => {
   const initialQuery: RuleGroupType = { combinator: 'and', rules: [] };
   const [query, setQuery] = useState<RuleGroupType>(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState<RuleGroupType>(initialQuery);
   const [emails, setEmails] = useState<Email[]>([]);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
@@ -76,23 +80,35 @@ const EmailsPage = () => {
   const runState = searchParams.get('run_state') ?? undefined;
   const workflowName = searchParams.get('workflow_name') ?? undefined;
 
-  const fetchEmails = useCallback(async (page: number, q: RuleGroupType) => {
+  const fetchEmails = useCallback(async (page: number, q: RuleGroupType, silent = false) => {
     try {
       const data: EmailResponseBody = await getAllEmails(page, q, workflowId, runState);
       setEmails(data.items);
       setCurrentPage(data.page);
       setTotalPages(data.pages);
-    } catch {
-      toast.error('Failed to load emails.');
+    } catch (err) {
+      if (silent) {
+        console.error('Silent email fetch failed:', err);
+      } else {
+        toast.error('Failed to load emails.');
+      }
     }
   }, [workflowId, runState]);
 
+  // Debounce query edits so an in-progress value (e.g. a half-typed regex) doesn't
+  // trigger a fetch, and mid-typing errors (like an unbalanced regex) stay silent.
   useEffect(() => {
-    void fetchEmails(currentPage, query);
-  }, [currentPage, workflowId, runState, query, fetchEmails]);
+    const handle = setTimeout(() => setDebouncedQuery(query), 400);
+    return () => clearTimeout(handle);
+  }, [query]);
+
+  useEffect(() => {
+    void fetchEmails(currentPage, debouncedQuery, true);
+  }, [currentPage, workflowId, runState, debouncedQuery, fetchEmails]);
 
   const handleSearch = () => {
     setCurrentPage(1);
+    setDebouncedQuery(query);
     fetchEmails(1, query);
   };
 
