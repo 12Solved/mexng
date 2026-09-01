@@ -25,4 +25,10 @@ class Config:
     IMAP_USE_SSL = os.getenv("IMAP_USE_SSL", "true").lower() == "true"
     IMAP_MAILBOX = os.getenv("IMAP_MAILBOX", "INBOX")
 
+    # GLOB configuration (comma-separated file glob patterns)
+    GLOB_PATTERNS = os.getenv("GLOB_PATTERNS", "")
+
+    # Poller checkpoint file (keep separate per provider/run to avoid clobbering the live poller's state)
+    CHECKPOINT_PATH = os.getenv("CHECKPOINT_PATH", "checkpoint.txt")
+
 config = Config()

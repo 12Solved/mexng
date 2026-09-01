@@ -31,7 +31,7 @@ A modular email processing system with configurable workflows. Process emails fr
 
 2. Configure required variables in `.env`:
    - **DATABASE_URL**: PostgreSQL connection string
-   - **EMAIL_PROVIDER**: Set to `imap`
+   - **EMAIL_PROVIDER**: Set to `imap`, or `glob` (see [Email Providers](#email-providers) below)
    - **VITE_BASE_PATH**: Frontend base path (must have leading/trailing slashes)
    - **IMAP_HOST**: Your IMAP server address (e.g., `imap.gmail.com`)
    - **IMAP_PORT**: IMAP port (typically `993` for SSL)
@@ -41,6 +41,15 @@ A modular email processing system with configurable workflows. Process emails fr
    - **IMAP_MAILBOX**: Mailbox to monitor (e.g., `INBOX`)
 
    > **Note**: For Gmail, generate an app password at https://myaccount.google.com/apppasswords
+
+### Email Providers
+
+Emails are fetched by `mailextractor/app/poller/poller.py` (via `python -m mailextractor.app.poller.poller` or `make poll`), which uses whichever provider is set in `EMAIL_PROVIDER`:
+
+- **`imap`**: Connects to a live IMAP mailbox. Configure `IMAP_HOST`, `IMAP_PORT`, `IMAP_USERNAME`, `IMAP_PASSWORD`, `IMAP_USE_SSL`, `IMAP_MAILBOX`.
+- **`glob`**: Imports local `.eml` files instead of a live mailbox — useful for testing or backfilling from files on disk. Configure `GLOB_PATTERNS` as one or more comma-separated glob patterns, e.g. `GLOB_PATTERNS=example-data/emails/*.eml,/path/to/more/*.eml`.
+
+All providers share the same checkpointing mechanism (`checkpoint.txt` by default): each poll records the latest email date/hash it inserted, so re-running the poller only fetches emails newer than the last checkpoint instead of re-importing everything.
 
 ## Installation
 
@@ -90,8 +99,8 @@ alembic upgrade head
 
 2. **Process Emails**:
    ```bash
-   python scripts/read_email.py
-   python scripts/process.py
+   python -m mailextractor.app.poller.poller
+   python mailextractor/app/processor/processor.py
    ```
 
 3. **Start Web Interface**:

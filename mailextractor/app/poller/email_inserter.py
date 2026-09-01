@@ -1,3 +1,4 @@
+"""Inserts a parsed mail dict (from any provider) as an Email + Attachment rows."""
 import logging
 import sys
 import os

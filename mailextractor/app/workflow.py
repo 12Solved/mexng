@@ -135,3 +135,9 @@ class Workflow:
       step_instance = step_class(**resolved_config)
 
       step_instance.run(context)
+
+  def __repr__(self):
+        return (
+            f"Workflow(workflow_id={self.workflow_id!r}, "
+            f"run_id={self.run_id!r}, steps={len(self.steps)})"
+        )

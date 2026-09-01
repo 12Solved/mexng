@@ -42,3 +42,10 @@ pytest.ini
 requirements-test.txt
 ruff.toml
 ruff-report.json
+
+.ipynb_checkpoints/
+_dep_*
+_dev_*
+/dev.ipynb
+/checkpoint.txt
+/read_email_checkpoint.txt

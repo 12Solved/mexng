@@ -44,6 +44,13 @@ class Email(Base):
     )
     runs = relationship("WorkflowRun", back_populates="email")
 
+    def __repr__(self):
+        return (
+            f"Email(id={self.id!r}, subject={self.subject!r}, "
+            f"sender={self.sender!r}, date={self.date!r}, "
+            f"attachments={len(self.attachments)})"
+        )
+
 class Attachment(Base):
     __tablename__ = "attachments"
 
