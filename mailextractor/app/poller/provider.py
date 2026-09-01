@@ -323,6 +323,11 @@ class IMAPProvider(BaseProvider):
 
         return attachments, html_body, plain_body
 
+_GLOB_MAGIC_CHARS = set("*?[")
+
+def _is_glob_pattern(pattern: str) -> bool:
+    return any(c in _GLOB_MAGIC_CHARS for c in pattern)
+
 class GLOBProvider(BaseProvider):
     """Reads local .eml files matching glob patterns, filtered by checkpoint date/hash."""
     def __init__(self, patterns: list[str], logger: Optional[Logger] = None, checkpoint_path: Optional[str | datetime] = 'checkpoint.txt'):
@@ -346,8 +351,12 @@ class GLOBProvider(BaseProvider):
             matched = glob.glob(pattern)
             if matched:
                 email_paths.extend(matched)
-            else:
-                email_paths.append(pattern) # Add the original pattern if no matches found
+            elif not _is_glob_pattern(pattern):
+                # a literal path (no wildcard) that doesn't exist is a
+                # missing/typo'd file, worth surfacing — but a wildcard
+                # pattern with zero current matches is a normal no-op
+                # (e.g. no new files dropped since the last poll)
+                email_paths.append(pattern)
 
         if not email_paths:
             if self._logger: self._logger.warning(f"No email files found.", extra={"event_type": "GLOB_NO_EMAIL"})

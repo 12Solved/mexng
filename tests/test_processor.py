@@ -1,5 +1,5 @@
 """run_dry() previously had no per-workflow error isolation (unlike run_db()),
-so one bad workflow would abort the whole dry-run group (_dev_review.txt #13)."""
+so one bad workflow would abort the whole dry-run group."""
 from mailextractor.app.processor.processor import run_dry
 
 

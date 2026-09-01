@@ -2,6 +2,43 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## fix: read_email.py argv crash, clean_mail.py ImportError, GLOB zero-match crash (2026-09-01)
+
+Three regressions from earlier commits on this branch, each caught with a
+test written first, then fixed.
+
+**#1 — `read_email.py` completely broken.** It repurposes its own argv as
+glob patterns, then delegates to `poller.main()` — which now runs argparse
+(added for `--loop` in an earlier commit) against that *same* argv,
+rejecting the .eml paths as unrecognized arguments (`SystemExit(2)`, no poll
+ever ran). Fixed by resetting `sys.argv` after consuming it, before calling
+`main()`.
+
+**#2 — `make clean-mail` completely broken.** `scripts/make/clean_mail.py`
+still imported the already-deleted `MailboxState` model (`ImportError` at
+startup, before any cleanup ran). Fixed by removing it, and refactored
+`clean_mail()` into an injectable-session function so it's actually testable
+against `db_test`. Also fixed two stale references in `clean-mail.sh` found
+in the same pass: it still mentioned/reset `read_email_checkpoint.txt`
+(removed when read_email.py stopped using a persistent checkpoint) and its
+reset JSON was missing `skip_hashes`.
+
+**#3 — GLOB pattern with zero matches crashed the poll.**
+`GLOBProvider.iterate_mails` appended the raw, unexpanded pattern string as a
+literal path whenever `glob.glob()` found zero matches — `_parse_message`
+then failed `os.path.exists()` on the wildcard itself and raised, aborting
+the whole poll instead of quietly reporting zero new emails. Under `--loop`
+this fired every single interval in the normal steady state (no new file
+dropped yet). Fixed by distinguishing a literal path (no `*`/`?`/`[`) with
+zero matches — still worth raising on, it's a missing/typo'd file — from a
+wildcard pattern with zero *current* matches, now silently skipped.
+
+New tests `tests/test_read_email_script.py`, `tests/test_clean_mail.py`,
+`tests/test_glob_zero_match.py` reproduce all three exactly as described;
+all now pass, along with the rest of the suite (10/10) — including the
+existing skip-list test that depends on a literal missing file still
+raising, confirming #3's fix doesn't overcorrect.
+
 ## chore: trailing newlines (2026-09-01)
 
 Review item #18. `workflow.py`, `workflow_context.py`, `.gitignore` were
@@ -68,7 +105,7 @@ rest of the group from running.
 
 ## feat: poison-pill skip-list + fix IMAP None-date crash (2026-09-01)
 
-Review items (`_dev_review.txt` #1, #2, #3, #6).
+Review items #1, #2, #3, #6.
 
 - Checkpoint gained `skip_hashes: list[str]`, hand-edited by an operator to
   unwedge a poller stuck crashing on the same bad email every poll — checked
@@ -91,7 +128,7 @@ Review items (`_dev_review.txt` #1, #2, #3, #6).
 
 ## fix: persist poller checkpoint across prod redeploys (2026-09-01)
 
-Review item (`_dev_review.txt` #15, flagged HIGHEST PRIORITY): the prod
+Review item #15 (flagged HIGHEST PRIORITY): the prod
 backend stored `checkpoint.txt` inside the container with no volume, so every
 redeploy lost it, IMAP's `SINCE` filter fell back to fetching the entire
 mailbox history, and (no unique constraint on `Email.message_id`) that meant

@@ -1,4 +1,4 @@
-"""Tests for the manual skip_hashes mechanism (_dev_review.txt #1/#2/#6):
+"""Tests for the manual skip_hashes mechanism:
 an operator can add a hash to checkpoint.txt's skip_hashes to unwedge a
 poller stuck on a poison-pill email, without the poller silently swallowing
 *unknown* poison pills (those must still crash loud)."""
