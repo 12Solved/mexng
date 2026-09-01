@@ -45,6 +45,7 @@ class MailDict(TypedDict):
 class Checkpoint(TypedDict):
     dt: Optional[datetime]
     hash: Optional[str]
+    skip_hashes: list[str]  # operator-edited; hashes to skip regardless of why they'd fail
 
 class BaseProvider(ABC):
     """Common interface: connect, iterate_mails, disconnect; tracks a date/hash checkpoint."""
@@ -60,16 +61,31 @@ class BaseProvider(ABC):
     def disconnect(self) -> None:
         ...
 
+    def _read_skip_hashes(self) -> list[str]:
+        """Re-reads skip_hashes so update_checkpoint() doesn't overwrite manual edits."""
+        cp = self._checkpoint_path
+        if isinstance(cp, datetime):
+            return []
+        try:
+            with open(cp, "r") as f:
+                return json.load(f).get("skip_hashes", [])
+        except (FileNotFoundError, json.JSONDecodeError):
+            return []
+
     def update_checkpoint(self, checkpoint: Checkpoint) -> None:
         cp = self._checkpoint_path
         if isinstance(cp, datetime):
             self._checkpoint_path = checkpoint["dt"]
             if self._logger: self._logger.info(f"Checkpoint updated in-memory (dt={checkpoint['dt']})", extra={"event_type": "CHECKPOINT_UPDATED"})
             return
+        # Read BEFORE opening for write — open(cp, "w") truncates immediately,
+        # so reading inside the dict literal below would see an empty file.
+        skip_hashes = self._read_skip_hashes()
         with open(cp, "w") as f:
             json.dump({
                 "dt": checkpoint["dt"].isoformat() if checkpoint["dt"] else None,
                 "hash": checkpoint["hash"],
+                "skip_hashes": skip_hashes,
             }, f)
         if self._logger: self._logger.info(f"Checkpoint written to {cp} (dt={checkpoint['dt']})", extra={"event_type": "CHECKPOINT_UPDATED"})
 
@@ -77,7 +93,7 @@ class BaseProvider(ABC):
         cp = self._checkpoint_path
         if isinstance(cp, datetime):
             if self._logger: self._logger.info(f"Using in-memory checkpoint {cp}", extra={"event_type": "CHECKPOINT_LOADED"})
-            return {"dt": cp, "hash": None}
+            return {"dt": cp, "hash": None, "skip_hashes": []}
         try:
             with open(cp, "r") as f:
                 data = json.load(f)
@@ -86,12 +102,13 @@ class BaseProvider(ABC):
                 return {
                     "dt": datetime.fromisoformat(dt_raw) if dt_raw else None,
                     "hash": data.get("hash"),
+                    "skip_hashes": data.get("skip_hashes", []),
                 }
         except FileNotFoundError:
             if self._logger: self._logger.warning(f"Checkpoint file not found, creating {cp}", extra={"event_type": "CHECKPOINT_CREATED"})
             with open(cp, "w") as f:
-                json.dump({"dt": None, "hash": None}, f)
-            return {"dt": None, "hash": None}
+                json.dump({"dt": None, "hash": None, "skip_hashes": []}, f)
+            return {"dt": None, "hash": None, "skip_hashes": []}
 
     @abstractmethod
     def iterate_mails(self) -> Iterator[MailDict]:
@@ -158,10 +175,12 @@ class IMAPProvider(BaseProvider):
         cp = self.get_checkpoint()
         dt = cp['dt']
         hash = cp['hash']
+        skip_hashes = set(cp.get('skip_hashes') or [])
         uids = self._fetch_uids(cp['dt'])
         batch_size = self._batch_size
         max_retries = self._max_retries
         n_emails = 0
+        n_skip_listed = 0
         for i in range(0, len(uids), batch_size):
             batch = uids[i:i + batch_size]
             uid_set = ",".join(str(u) for u in batch)
@@ -180,11 +199,19 @@ class IMAPProvider(BaseProvider):
                         if not isinstance(item, tuple) or len(item) != 2:
                             continue
                         parsed = self._parse_message(item[0], item[1])
-                        if dt and (parsed['date'] < dt):
+                        # date can be None; unguarded "< dt" raised TypeError here before
+                        if dt and parsed['date'] and (parsed['date'] < dt):
                             continue
                         if hash and (hash == parsed['hash']):
                             continue
-                        
+                        if parsed['hash'] in skip_hashes:
+                            n_skip_listed += 1
+                            if self._logger: self._logger.info(
+                                f"Skipping skip-listed email (hash={parsed['hash']})",
+                                extra={"event_type": "SKIP_LISTED_EMAIL", "hash": parsed['hash'], "message_id": parsed.get('message_id')}
+                            )
+                            continue
+
                         yield parsed
                         n_emails = n_emails + 1
                     break  # Success, move to next batch
@@ -193,7 +220,7 @@ class IMAPProvider(BaseProvider):
                     if attempt < max_retries - 1:
                         time.sleep(2 ** attempt)
                     # If last attempt fails, continue to next batch
-        if self._logger: self._logger.info(f"Fetched {n_emails} messages", extra={"event_type": "IMAP_FETCH_COMPLETE", "count": n_emails})
+        if self._logger: self._logger.info(f"Fetched {n_emails} messages. Skip-listed {n_skip_listed}.", extra={"event_type": "IMAP_FETCH_COMPLETE", "count": n_emails, "skip_listed": n_skip_listed})
 
     def _fetch_uids(self, dt: Optional[datetime] = None) -> list[int]:
         try:
@@ -308,6 +335,7 @@ class GLOBProvider(BaseProvider):
         cp = self.get_checkpoint()
         dt = cp['dt']
         hash = cp['hash']
+        skip_hashes = set(cp.get('skip_hashes') or [])
 
         email_paths = []
         for pattern in self._patterns:
@@ -322,9 +350,20 @@ class GLOBProvider(BaseProvider):
 
         success_count = 0
         skipped_count = 0
+        skip_listed_count = 0
         failure_count = 0
 
         for email_path in email_paths:
+            # no content hash exists before a successful parse, so a file that
+            # fails to parse is skip-listed by hash-of-path instead
+            path_hash = hashlib.sha256(email_path.encode()).hexdigest()
+            if path_hash in skip_hashes:
+                skip_listed_count += 1
+                if self._logger: self._logger.info(
+                    f"Skipping skip-listed file (hash={path_hash}, path={email_path})",
+                    extra={"event_type": "SKIP_LISTED_EMAIL", "hash": path_hash, "path": email_path}
+                )
+                continue
             try:
                 parsed = self._parse_message(email_path)
                 if dt and parsed['date'] and parsed['date'] < dt:
@@ -333,13 +372,25 @@ class GLOBProvider(BaseProvider):
                 if hash and hash == parsed['hash']:
                     skipped_count += 1
                     continue
+                if parsed['hash'] in skip_hashes:
+                    skip_listed_count += 1
+                    if self._logger: self._logger.info(
+                        f"Skipping skip-listed email (hash={parsed['hash']})",
+                        extra={"event_type": "SKIP_LISTED_EMAIL", "hash": parsed['hash'], "message_id": parsed.get('message_id')}
+                    )
+                    continue
                 yield parsed
                 success_count += 1
             except Exception as e:
-                if self._logger: self._logger.exception(e, extra={"event_type": "GLOB_ERROR"})
+                if self._logger: self._logger.exception(
+                    e, extra={"event_type": "GLOB_ERROR", "path": email_path, "path_hash": path_hash}
+                )
                 failure_count += 1
                 raise
-        if self._logger: self._logger.info(f"Fetched {success_count} messages. Skipped {skipped_count}. Failed {failure_count}", extra={"event_type": "GLOB_FETCH_COMPLETE", "count": success_count})
+        if self._logger: self._logger.info(
+            f"Fetched {success_count} messages. Skipped {skipped_count}. Skip-listed {skip_listed_count}. Failed {failure_count}",
+            extra={"event_type": "GLOB_FETCH_COMPLETE", "count": success_count}
+        )
 
     def _parse_message(self, email_path) -> dict | None:
         if not os.path.exists(email_path):

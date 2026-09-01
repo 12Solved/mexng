@@ -51,6 +51,24 @@ Emails are fetched by `mailextractor/app/poller/poller.py` (via `python -m maile
 
 All providers share the same checkpointing mechanism (`checkpoint.txt` by default): each poll records the latest email date/hash it inserted, so re-running the poller only fetches emails newer than the last checkpoint instead of re-importing everything.
 
+#### Poison-pill emails & the skip-list
+
+A poll crashes and rolls back the whole batch on bad mail data (e.g. a
+missing Date header) instead of silently skipping it. To recover: the crash
+is logged with the email's hash — add that hash to `skip_hashes` in the
+checkpoint file and re-poll; that one email is skipped from then on, and
+everything else in the batch still goes through normally. This works
+regardless of *why* it would've failed, not just missing dates.
+
+A file that fails to parse (glob provider) has no email content to hash yet,
+so it's skip-listed by `sha256(file_path)` instead — also logged, so you can
+copy it the same way.
+
+A skipped email doesn't itself move the checkpoint forward. If a later email
+in the same run has a newer date and inserts fine, the checkpoint still
+advances past that point as normal (and the skipped one drops out of range).
+It only keeps reappearing every poll if it's the newest one seen.
+
 ## Installation
 
 ### Development Environment

@@ -2,6 +2,29 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## feat: poison-pill skip-list + fix IMAP None-date crash (2026-09-01)
+
+Review items (`_dev_review.txt` #1, #2, #3, #6).
+
+- Checkpoint gained `skip_hashes: list[str]`, hand-edited by an operator to
+  unwedge a poller stuck crashing on the same bad email every poll — checked
+  before any content-specific failure, so it covers any reason, not just #2.
+  For a file that fails to parse entirely (glob, #6), no content hash exists
+  yet, so it's skip-listed by `sha256(file_path)` instead.
+- Bug caught by the new tests: `update_checkpoint()` read `skip_hashes` back
+  *inside* `open(cp, "w")`, which truncates on open — every write silently
+  wiped the skip-list. Fixed (read before opening for write).
+- IMAPProvider (#2): `parsed['date'] < dt` had no None guard (GLOBProvider
+  already did) — an unparseable Date header raised a raw `TypeError` inside
+  the retry loop, silently dropping the batch instead of reaching poll()'s
+  crash.
+- poller.py (#1): missing-date crash now logs the email's hash/message_id
+  under `POISON_PILL_EMAIL` so it can be found and skip-listed.
+- poller.py (#3): comment only, no behavior change — same-second timestamp
+  collisions accepted as rare enough to ignore.
+- `tests/test_poller_skip_list.py` (new, 3 tests) — caught the truncation bug above.
+- `README.md`: documented the skip-list workflow.
+
 ## fix: persist poller checkpoint across prod redeploys (2026-09-01)
 
 Review item (`_dev_review.txt` #15, flagged HIGHEST PRIORITY): the prod

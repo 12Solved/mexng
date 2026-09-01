@@ -26,12 +26,19 @@ def poll(config):
         n_mail = 0
         max_date = None
         max_hash = None
+        mail = None
         provider.connect()
         for mail in provider.iterate_mails():
             if mail['date'] is None:
-                raise ValueError(f"Email missing date (message_id={mail.get('message_id')!r}, subject={mail.get('subject')!r})")
+                logger.error(
+                    "Email missing date",
+                    extra={"event_type": "POISON_PILL_EMAIL", "hash": mail.get('hash'), "message_id": mail.get('message_id')},
+                )
+                raise ValueError(f"Email missing date (hash={mail.get('hash')!r}, message_id={mail.get('message_id')!r})")
             insert_email(session, mail)
             n_mail = n_mail + 1
+            # dedup key = single latest-dated hash; two emails sharing that exact
+            # second would let the older slip through again (assumed rare/ok)
             if (max_date is None) or max_date < mail['date']:
                 max_date = mail['date']
                 max_hash = mail['hash']
@@ -41,7 +48,15 @@ def poll(config):
         logger.info(f"Poll complete - {n_mail} new email(s) inserted.", extra={"event_type": "POLL_COMPLETE", "inserted": n_mail})
     except Exception as e:
         session.rollback()
-        logger.exception("Failed to insert email, rolled back all", extra={"event_type": "EMAIL_INSERT_FAILED", 'error': e})
+        logger.exception(
+            "Failed to insert email, rolled back all",
+            extra={
+                "event_type": "EMAIL_INSERT_FAILED",
+                'error': e,
+                'hash': mail.get('hash') if mail else None,
+                'message_id': mail.get('message_id') if mail else None,
+            },
+        )
         raise
     finally:
         provider.disconnect()
