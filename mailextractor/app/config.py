@@ -25,7 +25,11 @@ class Config:
     # GLOB configuration (comma-separated file glob patterns)
     GLOB_PATTERNS = os.getenv("GLOB_PATTERNS", "")
 
-    # Poller checkpoint file (keep separate per provider/run to avoid clobbering the live poller's state)
-    CHECKPOINT_PATH = os.getenv("CHECKPOINT_PATH", "checkpoint.txt") or None  # "" -> no checkpoint, fetch everything
+    # Poller checkpoint file (keep separate per provider/run to avoid clobbering the live poller's state).
+    # An empty value is treated as unset (falls back to the default below) rather than
+    # a bypass signal — an accidentally-empty env var must not silently disable
+    # checkpointing. Only the explicit sentinel "none" means "no checkpoint, fetch everything".
+    _checkpoint_path_raw = os.getenv("CHECKPOINT_PATH", "checkpoint.txt") or "checkpoint.txt"
+    CHECKPOINT_PATH = None if _checkpoint_path_raw.strip().lower() == "none" else _checkpoint_path_raw
 
 config = Config()

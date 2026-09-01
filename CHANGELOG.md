@@ -2,6 +2,22 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## fix: require explicit "none" to disable checkpointing (2026-09-01)
+
+`CHECKPOINT_PATH=""` previously meant "no checkpoint, fetch everything" —
+an accidentally-empty value (a deploy template rendering blank instead of
+omitting the var) would silently disable checkpointing in prod, causing the
+exact mass-duplicate-on-redeploy failure mode an earlier fix in this branch
+called HIGHEST PRIORITY and specifically addressed.
+
+An empty `CHECKPOINT_PATH` now falls back to the default (`checkpoint.txt`),
+same as omitting it entirely. Only the explicit sentinel `CHECKPOINT_PATH=none`
+(case-insensitive) disables checkpointing. `scripts/read_email.py` updated
+to set `"none"` instead of `""`. New `tests/test_config_checkpoint_path.py`
+(4 cases, subprocess-based since `Config` reads the env once at import time)
+locks in all four behaviors: unset, empty, `none`, and a real path. Full
+suite: 16/16.
+
 ## fix: IMAP batch parse failures silently dropped messages (2026-09-01)
 
 `IMAPProvider.iterate_mails` wrapped per-message parsing inside the same

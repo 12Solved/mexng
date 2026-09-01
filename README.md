@@ -51,6 +51,12 @@ Emails are fetched by `mailextractor/app/poller/poller.py` (via `python -m maile
 
 All providers share the same checkpointing mechanism (`checkpoint.txt` by default): each poll records the latest email date/hash it inserted, so re-running the poller only fetches emails newer than the last checkpoint instead of re-importing everything.
 
+Set `CHECKPOINT_PATH=none` to disable checkpointing entirely (fetch/insert
+everything every run, e.g. for one-off backfills — this is what
+`scripts/read_email.py` uses). An *empty* `CHECKPOINT_PATH` is treated as
+unset rather than as this bypass — only the literal `none` triggers it, so a
+misconfigured deploy can't accidentally disable checkpointing.
+
 `make poll-mail` polls once. For continuous polling, run the poller directly
 with `--loop` (mirrors `scripts/check_checkpoints.py`'s scheduler):
 `python mailextractor/app/poller/poller.py --loop --interval 300` (default
