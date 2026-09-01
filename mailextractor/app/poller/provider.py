@@ -190,41 +190,67 @@ class IMAPProvider(BaseProvider):
             batch = uids[i:i + batch_size]
             uid_set = ",".join(str(u) for u in batch)
 
-            # Retry logic
+            # Retry covers only the network FETCH — a parse failure below is
+            # deterministic (retrying re-fetches and re-fails on the same
+            # message) and must crash loud, not be silently retried/dropped
+            # with the rest of the batch. See GLOBProvider for the same
+            # split between "fetch" and "parse" failure handling.
+            msg_data = None
             for attempt in range(max_retries):
                 try:
                     status, msg_data = self._connection.uid("fetch", uid_set, "(RFC822)")
                     if status != "OK":
                         if self._logger: self._logger.warning(f"UID FETCH failed for batch {i}, attempt {attempt+1}/{max_retries}", extra={"event_type": "IMAP_FETCH_BATCH_FAILED"})
+                        msg_data = None
                         if attempt < max_retries - 1:
                             time.sleep(2 ** attempt)
                             continue
                         break  # Give up after max retries
-                    for item in msg_data:
-                        if not isinstance(item, tuple) or len(item) != 2:
-                            continue
-                        parsed = self._parse_message(item[0], item[1])
-                        # date can be None; unguarded "< dt" raised TypeError here before
-                        if dt and parsed['date'] and (parsed['date'] < dt):
-                            continue
-                        if hash and (hash == parsed['hash']):
-                            continue
-                        if parsed['hash'] in skip_hashes:
-                            n_skip_listed += 1
-                            if self._logger: self._logger.info(
-                                f"Skipping skip-listed email (hash={parsed['hash']})",
-                                extra={"event_type": "SKIP_LISTED_EMAIL", "hash": parsed['hash'], "message_id": parsed.get('message_id')}
-                            )
-                            continue
-
-                        yield parsed
-                        n_emails = n_emails + 1
-                    break  # Success, move to next batch
-                except Exception as e:
+                    break  # Fetch succeeded
+                except Exception:
                     if self._logger: self._logger.exception(f"Error fetching batch {i}, attempt {attempt+1}/{max_retries}", extra={"event_type": "IMAP_FETCH_BATCH_ERROR"})
+                    msg_data = None
                     if attempt < max_retries - 1:
                         time.sleep(2 ** attempt)
                     # If last attempt fails, continue to next batch
+
+            if msg_data is None:
+                continue
+
+            for item in msg_data:
+                if not isinstance(item, tuple) or len(item) != 2:
+                    continue
+
+                # No content hash exists before a successful parse, so a
+                # message that fails to parse is skip-listed by hash-of-UID
+                # instead (mirrors GLOBProvider's hash-of-path fallback).
+                uid_match = re.search(rb"UID (\d+)", item[0])
+                item_uid = uid_match.group(1).decode() if uid_match else None
+                uid_hash = hashlib.sha256(item_uid.encode()).hexdigest() if item_uid else None
+                if uid_hash and uid_hash in skip_hashes:
+                    n_skip_listed += 1
+                    if self._logger: self._logger.info(
+                        f"Skipping skip-listed message (hash={uid_hash}, uid={item_uid})",
+                        extra={"event_type": "SKIP_LISTED_EMAIL", "hash": uid_hash, "uid": item_uid}
+                    )
+                    continue
+
+                parsed = self._parse_message(item[0], item[1])
+                # date can be None; unguarded "< dt" raised TypeError here before
+                if dt and parsed['date'] and (parsed['date'] < dt):
+                    continue
+                if hash and (hash == parsed['hash']):
+                    continue
+                if parsed['hash'] in skip_hashes:
+                    n_skip_listed += 1
+                    if self._logger: self._logger.info(
+                        f"Skipping skip-listed email (hash={parsed['hash']})",
+                        extra={"event_type": "SKIP_LISTED_EMAIL", "hash": parsed['hash'], "message_id": parsed.get('message_id')}
+                    )
+                    continue
+
+                yield parsed
+                n_emails = n_emails + 1
         if self._logger: self._logger.info(f"Fetched {n_emails} messages. Skip-listed {n_skip_listed}.", extra={"event_type": "IMAP_FETCH_COMPLETE", "count": n_emails, "skip_listed": n_skip_listed})
 
     def _fetch_uids(self, dt: Optional[datetime] = None) -> list[int]:

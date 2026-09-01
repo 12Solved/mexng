@@ -2,6 +2,33 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## fix: IMAP batch parse failures silently dropped messages (2026-09-01)
+
+`IMAPProvider.iterate_mails` wrapped per-message parsing inside the same
+retry loop as the network FETCH. A single malformed message deterministically
+re-failed every retry attempt (re-fetching and re-parsing the identical
+batch each time — duplicating any good messages parsed earlier in that same
+batch before finally giving up), then silently moved to the next batch,
+abandoning the whole batch including otherwise-valid messages. Since a later
+batch still advances the checkpoint's max_date, the dropped messages were
+never re-fetched on any subsequent poll — permanent, silent data loss with
+no skip_hashes recovery path (no content hash exists for a message that
+never parsed).
+
+Fixed by splitting fetch and parse: retry now covers only the network FETCH
+call; a parse failure is no longer retried (it's deterministic — retrying
+can't fix it) and propagates immediately, crashing the poll loud rather than
+being silently dropped — same philosophy as GLOBProvider's file-parse
+failures. Gave IMAP the same skip-list fallback GLOB has: a message that
+fails to parse has no content hash yet, so it's skip-listable by
+`sha256(uid)` instead.
+
+New `tests/test_imap_batch_parsing.py` (mocked IMAP connection — reproducing
+a genuine MIME parse failure against the real mailbox isn't practical):
+proves a parse failure crashes without re-fetching the batch, and that
+skip-listing the UID hash lets the rest of the batch through. Full suite
+(12/12) still passes, including the real-mailbox integration test.
+
 ## fix: read_email.py argv crash, clean_mail.py ImportError, GLOB zero-match crash (2026-09-01)
 
 Three regressions from earlier commits on this branch, each caught with a
