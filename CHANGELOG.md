@@ -2,6 +2,26 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## docs: fix 4 stale README claims (2026-09-01)
+
+Audited README.md against the current codebase. Fixed:
+
+- "Available Workflow Steps" listed 7 of the 15 registered steps — added the
+  missing 8 (`AttachmentPatternMapStep`, `ExtractArchiveStep`,
+  `ExtractExtensionStep`, `MatchSubjectStep`, `MatchMessageIdStep`,
+  `SetVariableStep`, `TimeoutStep`, `HelloStep`).
+- "Python 3.8+" prerequisite was wrong — the code uses `X | Y` union type
+  syntax (no `from __future__ import annotations`), which needs 3.10+ to
+  run at all; the Dockerfile actually targets 3.11.
+- `make clean-mail`'s table description still said "mailbox poll state"
+  (that was `MailboxState`, deleted earlier on this branch) and "checkpoint
+  files" plural (there's only one now).
+- The skip-list section only documented GLOB's `sha256(file_path)` fallback,
+  never updated to mention IMAP's parallel `sha256(uid)` fallback added
+  earlier today.
+
+Docs only, no code changes; full suite still 23/23.
+
 ## refactor: de-duplicate IMAP/GLOB hashing and skip filtering (2026-09-01)
 
 Both providers' `_parse_message` independently duplicated the exact same

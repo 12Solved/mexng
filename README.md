@@ -15,7 +15,7 @@ A modular email processing system with configurable workflows. Process emails fr
 
 ## Prerequisites
 
-- Python 3.8+
+- Python 3.10+ (uses `X | Y` union type syntax; Dockerfile targets 3.11)
 - Node.js 24.14.1+
 - PostgreSQL 15
 - Docker & Docker Compose (for containerized deployment)
@@ -75,9 +75,9 @@ checkpoint file and re-poll; that one email is skipped from then on, and
 everything else in the batch still goes through normally. This works
 regardless of *why* it would've failed, not just missing dates.
 
-A file that fails to parse (glob provider) has no email content to hash yet,
-so it's skip-listed by `sha256(file_path)` instead — also logged, so you can
-copy it the same way.
+Something that fails to parse has no email content to hash yet, so it's
+skip-listed by a fallback hash instead — also logged, so you can copy it the
+same way: `sha256(file_path)` for the glob provider, `sha256(uid)` for IMAP.
 
 A skipped email doesn't itself move the checkpoint forward. If a later email
 in the same run has a newer date and inserts fine, the checkpoint still
@@ -134,7 +134,7 @@ All of the above (plus day-to-day commands) is also wrapped in a `Makefile`, bac
 | `make poll-mail` | Runs the mail poller once. |
 | `make process-mail` | Runs the mail processor once. |
 | `make run-mail` | Polls then processes mail. |
-| `make clean-mail` | Deletes all emails/attachments and resets all mail checkpoints (mailbox poll state, workflow checkpoints, checkpoint files). Prompts for confirmation; pass `FORCE=1` to skip it. |
+| `make clean-mail` | Deletes all emails/attachments and resets all mail checkpoints (workflow checkpoints in the db, and the poller's checkpoint file). Prompts for confirmation; pass `FORCE=1` to skip it. |
 | `make test` | Runs the test suite. |
 
 ### Testing
@@ -206,12 +206,20 @@ scripts/               # Utility scripts
 ## Available Workflow Steps
 
 - `AttachmentPatternStep`: Filter emails by attachment patterns
+- `AttachmentPatternMapStep`: Match the current attachment against an ordered list of filename patterns, producing one renamed copy per matching pattern
 - `SaveAttachmentStep`: Save attachments to filesystem
 - `ExtractAttachmentsStep`: Extract attachment data
+- `ExtractArchiveStep`: Extract members of a password-protected/plain archive attachment (`*.zip` by default) via the `7z` CLI
+- `ExtractExtensionStep`: Extract the current attachment's file extension into a context variable
 - `MatchSenderAddressStep`: Filter emails by sender address using a regex
 - `MatchRecipientAddressStep`: Filter emails by a recipient address (To/Cc/Bcc/X-Original-To, or any of them) using a regex
+- `MatchSubjectStep`: Filter emails by subject line using a regex
+- `MatchMessageIdStep`: Filter emails by the Message-ID header using a regex
 - `ForEachStep`: Iterate over collections
 - `DateStep`: Compute a date/time (now, the email's date, or an explicit/referenced value), apply a day/hour offset, and format it with a Python `strftime` pattern into a configurable context variable
+- `SetVariableStep`: Set an arbitrary context variable, including reserved control keys like `@dry_run`/`@stop`
+- `TimeoutStep`: Record that a named SLA checkpoint (the `checkpoints` table, unrelated to the poller's own checkpoint file) was touched by an incoming email
+- `HelloStep`: Print a summary of the email to stdout — for debugging workflows
 
 See [docs/workflow.md](docs/workflow.md) for workflow configuration details.
 
