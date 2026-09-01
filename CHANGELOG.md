@@ -2,6 +2,11 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## chore: trailing newlines (2026-09-01)
+
+Review item #18. `workflow.py`, `workflow_context.py`, `.gitignore` were
+missing a trailing newline. Cosmetic only.
+
 ## feat: restore continuous polling via --loop (2026-09-01)
 
 Review item #11 — `poller.sh` dropped the old `--loop` capability with no
