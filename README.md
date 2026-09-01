@@ -61,7 +61,10 @@ misconfigured deploy can't accidentally disable checkpointing.
 with `--loop` (mirrors `scripts/check_checkpoints.py`'s scheduler):
 `python mailextractor/app/poller/poller.py --loop --interval 300` (default
 300s; SIGTERM/SIGINT shut it down cleanly). A failed poll is logged and
-retried next interval rather than killing the loop.
+retried next interval rather than killing the loop — but 3 failures in a row
+escalates to a CRITICAL log (distinct event type, with the streak count),
+since that suggests something that won't self-heal (expired credentials, a
+dead DB) rather than a one-off poison pill. Resets on the next success.
 
 #### Poison-pill emails & the skip-list
 

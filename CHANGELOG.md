@@ -2,6 +2,28 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## feat: escalate log level after repeated consecutive --loop failures (2026-09-01)
+
+`_run_loop()`'s `job()` caught every `poll()` failure identically — logged
+at ERROR and retried next interval, no distinction between a one-off
+poison-pill (fine, self-heals via skip_hashes) and something persistent like
+expired IMAP credentials or a dead DB (retries forever with the same log
+level, no operator-visible signal until someone notices no mail has landed
+in hours).
+
+Extracted the retry/log logic into `LoopFailureTracker` (was an inline
+closure in `_run_loop`, not testable on its own — `_run_loop` blocks forever
+in `scheduler.start()`). It tracks consecutive failures and escalates to
+CRITICAL (distinct event type, streak count in the log) once they cross 3 in
+a row; resets to 0 on any success. Interval and process stay unchanged —
+this is purely a visibility fix for log-based monitoring/alerting.
+
+New `tests/test_loop_failure_tracker.py` (4 tests, unit-level against the
+tracker directly) plus a live check: pointed `--loop --interval 2` at a
+guaranteed-failing poll (missing-date fixture) and confirmed ticks 1-2 log
+ERROR, tick 3 onward escalates to CRITICAL with a growing count. Full suite:
+23/23.
+
 ## fix: IMAP UID SEARCH failures crashed instead of degrading gracefully (2026-09-01)
 
 `IMAPProvider._fetch_uids` never checked the `status` returned by UID SEARCH

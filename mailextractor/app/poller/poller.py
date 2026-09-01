@@ -64,19 +64,47 @@ def poll(config):
         session.close()
     return None
 
+CONSECUTIVE_FAILURE_ESCALATION_THRESHOLD = 3
+
+class LoopFailureTracker:
+    """Tracks consecutive poll() failures across scheduled ticks and escalates
+    the log level once they cross CONSECUTIVE_FAILURE_ESCALATION_THRESHOLD.
+    A single failure could be a one-off poison pill (fine to just retry next
+    interval); failing on every consecutive interval instead suggests
+    something that won't self-heal (expired IMAP credentials, a dead DB) —
+    escalating to CRITICAL makes that visible to log-based monitoring,
+    distinct from the routine-failure case. Resets to 0 on any success."""
+    def __init__(self, logger):
+        self._logger = logger
+        self.consecutive_failures = 0
+
+    def run(self, poll_fn):
+        try:
+            poll_fn()
+            self.consecutive_failures = 0
+        except Exception:
+            self.consecutive_failures += 1
+            if self.consecutive_failures >= CONSECUTIVE_FAILURE_ESCALATION_THRESHOLD:
+                self._logger.critical(
+                    f"Scheduled poll has failed {self.consecutive_failures} times in a row — needs operator attention",
+                    exc_info=True,
+                    extra={"event_type": "SCHEDULED_POLL_FAILING_REPEATEDLY", "consecutive_failures": self.consecutive_failures},
+                )
+            else:
+                self._logger.exception(
+                    "Scheduled poll failed — will retry next interval",
+                    extra={"event_type": "SCHEDULED_POLL_FAILED", "consecutive_failures": self.consecutive_failures},
+                )
+
 def _run_loop(interval: int) -> None:
     """Polls repeatedly on an interval (mirrors scripts/check_checkpoints.py's
-    APScheduler pattern). A failed poll is logged and retried next interval —
-    not fatal to the loop — since the skip_hashes mechanism is meant to let an
-    operator unwedge it without needing to restart the process."""
+    APScheduler pattern)."""
     engine = create_engine(config.DATABASE_URL)
     logger = setup_logging(engine)
+    tracker = LoopFailureTracker(logger)
 
     def job():
-        try:
-            poll(config)
-        except Exception:
-            logger.exception("Scheduled poll failed — will retry next interval", extra={"event_type": "SCHEDULED_POLL_FAILED"})
+        tracker.run(lambda: poll(config))
 
     scheduler = BlockingScheduler()
     scheduler.add_job(job, "interval", seconds=interval, next_run_time=datetime.now())
