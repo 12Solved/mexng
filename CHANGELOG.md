@@ -2,6 +2,23 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## feat: restore continuous polling via --loop (2026-09-01)
+
+Review item #11 — `poller.sh` dropped the old `--loop` capability with no
+replacement; nothing in the repo scheduled repeated polling.
+
+`poller.py` gains `--loop`/`--interval` (default 300s), mirroring
+`scripts/check_checkpoints.py`'s existing APScheduler pattern (same library,
+same SIGTERM/SIGINT shutdown handling). A failed poll inside the loop is
+logged and retried next interval rather than crashing the process — so
+Group 2's skip_hashes recovery works without needing a manual restart.
+`poller.sh` passes args through again. `make poll-mail` stays one-shot,
+matching `check_checkpoints.py` (no make target either); looping is opt-in
+via the raw script. `--batch`/IMAP-filter mode stays dropped, as agreed.
+
+Verified live: `--loop --interval 2` ticked 3 times against the real
+mailbox, then shut down cleanly on SIGTERM (exit 0).
+
 ## feat: checkpoint-bypass for full backfill (2026-09-01)
 
 Review item #7. `CHECKPOINT_PATH=""` (or `checkpoint_path=None` on a

@@ -51,6 +51,12 @@ Emails are fetched by `mailextractor/app/poller/poller.py` (via `python -m maile
 
 All providers share the same checkpointing mechanism (`checkpoint.txt` by default): each poll records the latest email date/hash it inserted, so re-running the poller only fetches emails newer than the last checkpoint instead of re-importing everything.
 
+`make poll-mail` polls once. For continuous polling, run the poller directly
+with `--loop` (mirrors `scripts/check_checkpoints.py`'s scheduler):
+`python mailextractor/app/poller/poller.py --loop --interval 300` (default
+300s; SIGTERM/SIGINT shut it down cleanly). A failed poll is logged and
+retried next interval rather than killing the loop.
+
 #### Poison-pill emails & the skip-list
 
 A poll crashes and rolls back the whole batch on bad mail data (e.g. a

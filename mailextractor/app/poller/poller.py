@@ -1,7 +1,11 @@
 """Runs one poll: fetch new mail via the configured provider, insert into DB."""
+import argparse
 import os
+import signal
 import sys
+from datetime import datetime
 
+from apscheduler.schedulers.blocking import BlockingScheduler
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -60,8 +64,43 @@ def poll(config):
         session.close()
     return None
 
+def _run_loop(interval: int) -> None:
+    """Polls repeatedly on an interval (mirrors scripts/check_checkpoints.py's
+    APScheduler pattern). A failed poll is logged and retried next interval —
+    not fatal to the loop — since the skip_hashes mechanism is meant to let an
+    operator unwedge it without needing to restart the process."""
+    engine = create_engine(config.DATABASE_URL)
+    logger = setup_logging(engine)
+
+    def job():
+        try:
+            poll(config)
+        except Exception:
+            logger.exception("Scheduled poll failed — will retry next interval", extra={"event_type": "SCHEDULED_POLL_FAILED"})
+
+    scheduler = BlockingScheduler()
+    scheduler.add_job(job, "interval", seconds=interval, next_run_time=datetime.now())
+
+    def shutdown(signum, frame):
+        logger.info("Shutting down poll scheduler", extra={"event_type": "POLL_SCHEDULER_SHUTDOWN"})
+        scheduler.shutdown(wait=False)
+
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
+
+    logger.info(f"Poll scheduler started (interval: {interval}s)", extra={"event_type": "POLL_SCHEDULER_STARTED"})
+    scheduler.start()
+
 def main():
-    poll(config)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--loop", action="store_true", help="Poll repeatedly on an interval instead of once")
+    parser.add_argument("--interval", type=int, default=300, help="Seconds between polls when --loop is set (default: 300)")
+    args = parser.parse_args()
+
+    if args.loop:
+        _run_loop(args.interval)
+    else:
+        poll(config)
 
 if __name__ == "__main__":
     main()
