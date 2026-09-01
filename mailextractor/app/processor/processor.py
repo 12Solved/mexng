@@ -9,7 +9,6 @@ from mailextractor.app.app_logging.setup_logging import setup_logging
 from mailextractor.app.config import config
 from mailextractor.app.workflow import Workflow
 from mailextractor.models import Email, RunState, WorkflowModel, WorkflowRun
-from mailextractor.app.config import config
 
 def get_workflows_from_db(session, logger = None):
     workflow_rows = session.query(WorkflowModel).filter(WorkflowModel.enabled).all()
@@ -48,7 +47,8 @@ def get_re_run_workflow_ids_from_db(session, emails, logger = None):
             res[e_id] = r_ids
     return res   
 
-def get_run_groups(emails, workflows, re_run_workflow_ids={}, logger=None):
+def get_run_groups(emails, workflows, re_run_workflow_ids=None, logger=None):
+    re_run_workflow_ids = re_run_workflow_ids or {}
     for email in emails:
         re_run_ids = re_run_workflow_ids.get(email.id, None)
         if re_run_ids is None:
@@ -60,7 +60,10 @@ def get_run_groups(emails, workflows, re_run_workflow_ids={}, logger=None):
 def run_dry(groups, logger=None):
     for e, workflows in groups:
         for w in workflows:
-            res = w.run(e, run_options={})
+            try:
+                w.run(e, run_options={})
+            except Exception:
+                if logger: logger.exception("Dry-run workflow execution failed", extra={"event_type": "WORKFLOW_FAILED", "email_id": e.id, "workflow_id": w.workflow_id})
     return None
 
 def run_db(session, groups, logger=None):

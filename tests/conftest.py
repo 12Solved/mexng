@@ -24,7 +24,7 @@ from mailextractor.models import Base, WorkflowModel  # noqa: E402
 
 EXAMPLE_DATA_DIR = os.path.join(ROOT_DIR, "example-data")
 
-TABLES = ["logs", "runs", "workflows", "attachments", "emails", "mailbox_state", "checkpoints"]
+TABLES = ["logs", "runs", "workflows", "attachments", "emails", "checkpoints"]
 
 
 TEST_DATABASE_NAME = "db_test"

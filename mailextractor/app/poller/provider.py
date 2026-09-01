@@ -279,7 +279,6 @@ class IMAPProvider(BaseProvider):
         except Exception as e:
             if self._logger: self._logger.exception("Error parsing IMAP message", extra={"event_type": "IMAP_MESSAGE_PARSE_ERROR", "error": str(e)})
             raise
-            return None
 
     def _decode_header_value(self, value: str | None) -> str | None:
         if not value:

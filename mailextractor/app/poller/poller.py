@@ -1,9 +1,6 @@
 """Runs one poll: fetch new mail via the configured provider, insert into DB."""
-import argparse
-import math
 import os
 import sys
-import time
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

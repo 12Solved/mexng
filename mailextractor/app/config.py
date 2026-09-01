@@ -11,11 +11,8 @@ class Config:
         raise ValueError("DATABASE_URL is not set")
 
     # Email provider configuration
-    EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "gmail")  # "gmail" or "imap"
+    EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "imap")  # "imap" or "glob"
     FILE_EXTRACT_PATH = os.getenv("FILE_EXTRACT_PATH", "/")
-    # Gmail configuration
-    GMAIL_CREDENTIALS_PATH = os.getenv("GMAIL_CREDENTIALS_PATH", "app/poller/credentials.json")
-    GMAIL_TOKEN_PATH = os.getenv("GMAIL_TOKEN_PATH", "app/poller/token.json")
 
     # IMAP configuration
     IMAP_HOST = os.getenv("IMAP_HOST", "imap.gmail.com")

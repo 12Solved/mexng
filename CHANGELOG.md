@@ -2,6 +2,34 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## fix: default EMAIL_PROVIDER to imap, drop dead config/model (2026-09-01)
+
+Review items #4, #16, #8. `config.py`: default `EMAIL_PROVIDER` was still
+`"gmail"` though Gmail support was removed (get_provider() rejects it) —
+deploys that didn't set it explicitly crashed on startup. Defaults to
+`"imap"` now. Also removed `GMAIL_CREDENTIALS_PATH`/`GMAIL_TOKEN_PATH`
+(confirmed dead — GmailProvider is gone, nothing reads these).
+
+`models.py`: removed `MailboxState` (confirmed dead — the checkpoint-file
+mechanism replaced it, nothing references it anymore) plus its now-unused
+`UniqueConstraint` import. New migration `2bb9e6b0bb89` drops the
+`mailbox_state` table; verified both directions (upgrade drops it, downgrade
+recreates it) against the dev db. `tests/conftest.py`'s truncate list updated
+to match.
+
+Dead-code cleanup, review items #9, #12: removed the unreachable `return None`
+after `raise` in `IMAPProvider._parse_message`. Removed unused imports in
+`poller.py` — `argparse` (flagged by the review) plus `math`/`time` (same
+issue, not individually called out).
+
+`processor.py` (#13, #14): `get_run_groups`'s mutable default arg
+(`re_run_workflow_ids={}`) fixed to `None` + guard. `run_dry()` was dead code
+with no per-workflow error isolation, unlike `run_db()` — kept and fixed
+(matching try/except), no caller wired up yet since none exists to wire it
+to. Also dropped a duplicate `from mailextractor.app.config import config`.
+New `tests/test_processor.py` proves one workflow raising doesn't stop the
+rest of the group from running.
+
 ## feat: poison-pill skip-list + fix IMAP None-date crash (2026-09-01)
 
 Review items (`_dev_review.txt` #1, #2, #3, #6).
