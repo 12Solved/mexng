@@ -57,6 +57,16 @@ everything every run, e.g. for one-off backfills — this is what
 unset rather than as this bypass — only the literal `none` triggers it, so a
 misconfigured deploy can't accidentally disable checkpointing.
 
+**`scripts/read_email.py foo.eml bar.eml baz.eml` is all-or-nothing.** It
+runs through the same `poll()`/glob machinery as everything else: if one
+file in the batch fails to parse, the whole batch is rolled back — none of
+the files get inserted, not just the bad one. This is deliberate (see
+"Poison-pill emails & the skip-list" below), but it's a real difference from
+older per-file-try/except-style backfill tools — if a large batch fails, the
+fix is either to remove/fix the offending file, or to add it to
+`skip_hashes` (or its path hash, if it fails to parse at all) so the rest of
+the batch goes through.
+
 `make poll-mail` polls once. For continuous polling, run the poller directly
 with `--loop` (mirrors `scripts/check_checkpoints.py`'s scheduler):
 `python mailextractor/app/poller/poller.py --loop --interval 300` (default

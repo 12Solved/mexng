@@ -245,7 +245,14 @@ class IMAPProvider(BaseProvider):
                     # If last attempt fails, continue to next batch
 
             if msg_data is None:
-                continue
+                # Silently moving on to the next batch here would let a
+                # later, newer-dated batch advance the checkpoint past this
+                # one — permanently excluding it from every future SINCE
+                # search, with no skip_hashes recovery (nothing was ever
+                # fetched to hash). Crash instead: checkpoint doesn't move,
+                # next poll retries the whole UID range (some redundant
+                # re-fetching of batches that already succeeded, but safe).
+                raise Exception(f"UID FETCH exhausted {max_retries} retries for batch {i} (uids {uid_set})")
 
             for item in msg_data:
                 if not isinstance(item, tuple) or len(item) != 2:

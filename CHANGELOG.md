@@ -2,6 +2,63 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## fix: poll() leaked a fresh engine/pool on every --loop tick (2026-09-01)
+
+`poll()` created a brand-new SQLAlchemy engine on every call and never
+disposed it — harmless for a one-shot invocation (process exits right
+after), but a real connection leak in `--loop` mode, where `poll()` runs on
+every scheduler tick inside one long-lived process. Left unbounded, this
+could exhaust Postgres's `max_connections` over a long-running deployment —
+potentially tripping the CRITICAL escalation from an earlier fix, a
+self-inflicted outage.
+
+Restoring a true module-level singleton engine (the old pre-refactor
+pattern) wasn't safe here: `poll(config)` deliberately creates its engine
+from *whatever config it's given* specifically so every test can point it at
+`db_test` in isolation — a global engine bound to the real `.env` config
+would've silently routed test writes through the real dev db instead.
+
+Fixed by making the engine optional: `poll(config, engine=None)` creates and
+disposes its own by default (unchanged behavior for one-shot use and every
+test), but `_run_loop()` now creates one engine (with `pool_pre_ping=True`,
+so a connection gone stale after a long idle gap is transparently replaced
+rather than erroring) and passes it into every tick's `poll()` call, reusing
+it for the life of the process; disposed on shutdown.
+
+New `tests/test_poll_engine_lifecycle.py`: `poll()` disposes an engine it
+created itself, and does not dispose one passed in externally. Also verified
+live: watched `pg_stat_activity`'s connection count across 4 real `--loop`
+ticks — stayed flat the whole time (no growth), back to baseline after the
+process was killed. Full suite: 26/26.
+
+## docs: call out read_email.py's all-or-nothing batch behavior (2026-09-01)
+
+Not a bug — `read_email.py` rolling back a whole batch on one bad file is
+the same deliberate crash-loud/skip_hashes-recovery design already used
+everywhere else, not a new regression. But it was never called out as a
+behavior difference from older per-file backfill tools, so a bulk-backfill
+run failing on one file out of many could be surprising. Documented under
+Email Providers in README, next to the `CHECKPOINT_PATH=none` backfill
+docs, with the fix (remove/fix the file, or skip-list it).
+
+## fix: FETCH-exhaustion could silently drop a batch permanently (2026-09-01)
+
+Same underlying data-loss pattern as the earlier parse-failure fix, just
+never extended to this path: a FETCH batch that exhausted all retries logged
+a WARNING and moved to the next batch — but if a later batch succeeded with
+newer dates, the checkpoint advanced past the dropped batch, permanently
+excluding it from every future SINCE search (no skip_hashes recovery, since
+nothing was ever fetched to hash).
+
+Now raises instead — checkpoint never advances past a run with a failed
+batch, so nothing is lost; next poll retries the whole UID range (some
+redundant re-fetching of batches that already succeeded that run, but safe).
+A persistently-failing batch will also trigger the CRITICAL escalation from
+the earlier `--loop` fix after 3 consecutive polls.
+
+New `tests/test_imap_fetch_exhaustion.py`: a later batch exhausting retries
+crashes without silently dropping it. Full suite: 24/24.
+
 ## docs: fix 4 stale README claims (2026-09-01)
 
 Audited README.md against the current codebase. Fixed:

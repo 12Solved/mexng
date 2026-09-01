@@ -16,9 +16,15 @@ from mailextractor.app.config import config
 from mailextractor.app.poller.email_inserter import insert_email
 from mailextractor.app.app_logging.setup_logging import setup_logging
 
-def poll(config):
-    """Fetch new mail via the configured provider and insert it, advancing the checkpoint."""
-    engine = create_engine(config.DATABASE_URL)
+def poll(config, engine=None):
+    """Fetch new mail via the configured provider and insert it, advancing the checkpoint.
+    If no engine is given, creates and disposes its own (fine for one-shot
+    use, and required for tests to stay isolated to their own config's db —
+    see _run_loop, which passes in one long-lived engine reused across ticks
+    instead of leaking a fresh pool every interval)."""
+    owns_engine = engine is None
+    if owns_engine:
+        engine = create_engine(config.DATABASE_URL)
     Session = sessionmaker(bind=engine)
     logger = setup_logging(engine)
     provider = get_provider(config = config, logger = logger, checkpoint_path = config.CHECKPOINT_PATH)
@@ -62,6 +68,8 @@ def poll(config):
     finally:
         provider.disconnect()
         session.close()
+        if owns_engine:
+            engine.dispose()
     return None
 
 CONSECUTIVE_FAILURE_ESCALATION_THRESHOLD = 3
@@ -98,13 +106,16 @@ class LoopFailureTracker:
 
 def _run_loop(interval: int) -> None:
     """Polls repeatedly on an interval (mirrors scripts/check_checkpoints.py's
-    APScheduler pattern)."""
-    engine = create_engine(config.DATABASE_URL)
+    APScheduler pattern). One engine is created here and reused for every
+    tick's poll() call — poll() itself creates+disposes a fresh one per call
+    by default (needed so tests stay isolated to their own config's db), but
+    that would leak a pool every interval in a long-lived --loop process."""
+    engine = create_engine(config.DATABASE_URL, pool_pre_ping=True)
     logger = setup_logging(engine)
     tracker = LoopFailureTracker(logger)
 
     def job():
-        tracker.run(lambda: poll(config))
+        tracker.run(lambda: poll(config, engine=engine))
 
     scheduler = BlockingScheduler()
     scheduler.add_job(job, "interval", seconds=interval, next_run_time=datetime.now())
@@ -112,6 +123,7 @@ def _run_loop(interval: int) -> None:
     def shutdown(signum, frame):
         logger.info("Shutting down poll scheduler", extra={"event_type": "POLL_SCHEDULER_SHUTDOWN"})
         scheduler.shutdown(wait=False)
+        engine.dispose()
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
