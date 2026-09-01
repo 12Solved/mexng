@@ -44,7 +44,7 @@ A modular email processing system with configurable workflows. Process emails fr
 
 ### Email Providers
 
-Emails are fetched by `mailextractor/app/poller/poller.py` (via `python -m mailextractor.app.poller.poller` or `make poll`), which uses whichever provider is set in `EMAIL_PROVIDER`:
+Emails are fetched by `mailextractor/app/poller/poller.py` (via `python -m mailextractor.app.poller.poller` or `make poll-mail`), which uses whichever provider is set in `EMAIL_PROVIDER`:
 
 - **`imap`**: Connects to a live IMAP mailbox. Configure `IMAP_HOST`, `IMAP_PORT`, `IMAP_USERNAME`, `IMAP_PASSWORD`, `IMAP_USE_SSL`, `IMAP_MAILBOX`.
 - **`glob`**: Imports local `.eml` files instead of a live mailbox — useful for testing or backfilling from files on disk. Configure `GLOB_PATTERNS` as one or more comma-separated glob patterns, e.g. `GLOB_PATTERNS=example-data/emails/*.eml,/path/to/more/*.eml`.
@@ -88,6 +88,22 @@ Run migrations:
 alembic upgrade head
 ```
 
+### Makefile
+
+All of the above (plus day-to-day commands) is also wrapped in a `Makefile`, backed by scripts under `scripts/make/`:
+
+| Target | Does |
+|---|---|
+| `make init` | Initializes the project from 0 — run after your first git pull/clone (env files, venv, nenv, frontend deps, db up, migrate). |
+| `make update` | Installs new dependencies and migrates the db — run after every `git pull`. |
+| `make run-app` | Runs the app (db + backend + frontend dev servers). |
+| `make kill-app` | Stops the app (backend + frontend dev servers + db). |
+| `make poll-mail` | Runs the mail poller once. |
+| `make process-mail` | Runs the mail processor once. |
+| `make run-mail` | Polls then processes mail. |
+| `make clean-mail` | Deletes all emails/attachments and resets all mail checkpoints (mailbox poll state, workflow checkpoints, checkpoint files). Prompts for confirmation; pass `FORCE=1` to skip it. |
+| `make test` | Runs the test suite. |
+
 ## Usage
 
 ### Development
@@ -101,11 +117,13 @@ alembic upgrade head
    ```bash
    python -m mailextractor.app.poller.poller
    python mailextractor/app/processor/processor.py
+   # or: make poll-mail && make process-mail  (or make run-mail)
    ```
 
 3. **Start Web Interface**:
    ```bash
    bash scripts/webserver-dev.sh
+   # or: make run-app
    ```
 
 ### Production Deployment

@@ -1,63 +1,40 @@
 SHELL := /bin/bash
+MAKE_SCRIPTS := scripts/make
 
-ENV = set -a && source .env && set +a
-VENV = source .venv/bin/activate
-NENV = source .nenv/bin/activate
-ACTIVATE = $(VENV) && $(NENV) && $(ENV)
+.PHONY: init update run-app kill-app poll-mail process-mail run-mail clean-mail test
 
-# ── Setup ─────────────────────────────────────────────────────────────────────
+## Initialize the project from 0 — run after your first git pull/clone.
+init:
+	@bash $(MAKE_SCRIPTS)/init.sh
 
-.PHONY: setup
-setup: .env .venv .nenv frontend/node_modules db-up migrate
+## Install new dependencies and migrate the db — run after every git pull.
+update:
+	@bash $(MAKE_SCRIPTS)/update.sh
 
-.env:
-	cp .env.example .env
-	@echo ".env created — fill in your credentials"
+## Run the app (db + backend + frontend dev servers).
+run-app:
+	@bash $(MAKE_SCRIPTS)/run-app.sh
 
-.venv:
-	python -m venv .venv
-	$(VENV) && pip install -r requirements.txt
+## Stop the app (backend + frontend dev servers + db).
+kill-app:
+	@bash $(MAKE_SCRIPTS)/kill-app.sh
 
-.nenv:
-	nodeenv -n 24.14.1 .nenv
+## Run the mail poller once.
+poll-mail:
+	@bash $(MAKE_SCRIPTS)/poll-mail.sh
 
-frontend/node_modules:
-	$(NENV) && cd frontend && npm install
+## Run the mail processor once.
+process-mail:
+	@bash $(MAKE_SCRIPTS)/process-mail.sh
 
-.PHONY: db-up
-db-up:
-	docker-compose -f mailextractor/docker-compose.yml up -d
+## Poll then process mail.
+run-mail:
+	@bash $(MAKE_SCRIPTS)/run-mail.sh
 
-.PHONY: db-down
-db-down:
-	docker-compose -f mailextractor/docker-compose.yml down
+## Delete all emails/attachments and reset all mail checkpoints. Use FORCE=1 to skip the prompt.
+clean-mail:
+	@bash $(MAKE_SCRIPTS)/clean-mail.sh
 
-.PHONY: migrate
-migrate:
-	$(VENV) && $(ENV) && alembic upgrade head
-
-# ── Dev server ────────────────────────────────────────────────────────────────
-
-.PHONY: dev
-dev: db-up
-	$(ACTIVATE) && bash scripts/webserver-dev.sh
-
-.PHONY: down
-down:
-	-pkill -f "uvicorn mailextractor.backend.main:app"
-	-pkill -f "frontend/node_modules/.bin/vite"
-	-pkill -f "scripts/webserver-dev.sh"
-	$(MAKE) db-down
-
-# ── Email pipeline ────────────────────────────────────────────────────────────
-
-.PHONY: poll
-poll:
-	$(ACTIVATE) && python mailextractor/app/poller/poller.py
-
-.PHONY: process
-process:
-	$(ACTIVATE) && python mailextractor/app/processor/processor.py
-
-.PHONY: run
-run: poll process
+## Run the test suite (template — fill in as tests get added).
+test:
+	@bash $(MAKE_SCRIPTS)/test.sh

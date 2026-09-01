@@ -1,8 +1,32 @@
 # Changelog
 
-Notes on notable commits, newest first. Started 2026-09-01 at commit `2ebbea3` — earlier history is not backfilled.
+Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
-## 2ebbea3 — feat: poller processor refactor (2026-09-01)
+## feat: rework Makefile into scripts/make/, add update and clean-mail targets (2026-09-01)
+
+16 files changed: 14 added, 0 deleted, 2 modified.
+
+**Makefile**
+- `Makefile`: now a thin dispatcher — every target just calls a script under `scripts/make/`. Renamed targets to be more descriptive: `setup`→`init`, `dev`→`run-app`, `down`→`kill-app`, `poll`→`poll-mail`, `process`→`process-mail`, `run`→`run-mail`. AdWded `update` (installs new deps + migrates db, for after `git pull`) and `clean-mail` (see below).
+
+**scripts/make/ (all added)**
+- `_common.sh`: shared `ROOT_DIR` + `activate_env()` helper (source venv, nenv, `.env`).
+- `db-up.sh` / `db-down.sh`: docker-compose wrappers for the mailextractor Postgres container.
+- `migrate.sh`: `alembic upgrade head`.
+- `init.sh`: first-time setup from 0 — creates `.env`/`.venv`/`.nenv`/frontend deps if missing, brings db up, migrates.
+- `update.sh`: `pip install`/`npm install` + migrate, idempotent, meant to run after every `git pull`.
+- `run-app.sh` / `kill-app.sh`: same behavior as the old `dev`/`down` targets (db up + `webserver-dev.sh`; pkill uvicorn/vite + db down).
+- `poll-mail.sh` / `process-mail.sh` / `run-mail.sh`: same behavior as the old `poll`/`process`/`run` targets.
+- `clean_mail.py` / `clean-mail.sh`: new — deletes all `emails` rows (attachments cascade via existing FK), clears `mailbox_state`, resets the `checkpoints` table's runtime fields (`status`→`never_seen`, timestamps→`NULL`, config columns untouched), and resets the on-disk `checkpoint.txt`/`read_email_checkpoint.txt` poller checkpoint files to `{"dt": null, "hash": null}`. Prompts `y/N` before running; `FORCE=1` skips the prompt.
+- `test.sh`: placeholder — runs `pytest tests/` if a suite exists under `tests/`, otherwise just says so (no test suite exists yet).
+
+**Bugfix**
+- Every script above computes its own directory into a variable that, in an earlier draft, was named `DIR`. `.nenv/bin/activate` (nodeenv) also sets an unscoped `DIR` when sourced, so `source .nenv/bin/activate` inside a script silently clobbered that script's own `$DIR` for anything called afterward (e.g. `update.sh` failed with `bash: .../.nenv/bin/migrate.sh: No such file or directory`). Renamed to `MAKE_DIR` everywhere to avoid the collision.
+
+**Docs**
+- `README.md`: added a "Makefile" section documenting all targets; updated the `make poll` reference to `make poll-mail`; noted the `make run-app`/`make poll-mail && make process-mail`/`make run-mail` shortcuts next to the manual commands.
+
+## feat: poller processor refactor (2026-09-01)
 
 19 files changed: 3 added, 2 deleted, 14 modified.
 
