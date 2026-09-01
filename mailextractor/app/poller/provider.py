@@ -49,7 +49,7 @@ class Checkpoint(TypedDict):
 
 class BaseProvider(ABC):
     """Common interface: connect, iterate_mails, disconnect; tracks a date/hash checkpoint."""
-    def __init__(self, logger: Optional[Logger], checkpoint_path: str | datetime):
+    def __init__(self, logger: Optional[Logger], checkpoint_path: Optional[str | datetime]):
         self._checkpoint_path = checkpoint_path
         self._logger = logger
 
@@ -64,7 +64,7 @@ class BaseProvider(ABC):
     def _read_skip_hashes(self) -> list[str]:
         """Re-reads skip_hashes so update_checkpoint() doesn't overwrite manual edits."""
         cp = self._checkpoint_path
-        if isinstance(cp, datetime):
+        if cp is None or isinstance(cp, datetime):
             return []
         try:
             with open(cp, "r") as f:
@@ -74,6 +74,8 @@ class BaseProvider(ABC):
 
     def update_checkpoint(self, checkpoint: Checkpoint) -> None:
         cp = self._checkpoint_path
+        if cp is None:
+            return  # no checkpoint configured — nothing to persist
         if isinstance(cp, datetime):
             self._checkpoint_path = checkpoint["dt"]
             if self._logger: self._logger.info(f"Checkpoint updated in-memory (dt={checkpoint['dt']})", extra={"event_type": "CHECKPOINT_UPDATED"})
@@ -91,6 +93,9 @@ class BaseProvider(ABC):
 
     def get_checkpoint(self) -> Checkpoint:
         cp = self._checkpoint_path
+        if cp is None:
+            if self._logger: self._logger.info("No checkpoint configured — fetching everything", extra={"event_type": "CHECKPOINT_LOADED"})
+            return {"dt": None, "hash": None, "skip_hashes": []}
         if isinstance(cp, datetime):
             if self._logger: self._logger.info(f"Using in-memory checkpoint {cp}", extra={"event_type": "CHECKPOINT_LOADED"})
             return {"dt": cp, "hash": None, "skip_hashes": []}
@@ -124,7 +129,7 @@ class BaseProvider(ABC):
 
 class IMAPProvider(BaseProvider):
     """Fetches mail over IMAP, batched with retries, filtered by checkpoint date/hash."""
-    def __init__(self, host: str, port: int, username: str, password: str, use_ssl: bool, mailbox: str, logger: Optional[Logger] = None, checkpoint_path: str | datetime = 'checkpoint.txt', batch_size: int = 50, max_retries: int = 3):
+    def __init__(self, host: str, port: int, username: str, password: str, use_ssl: bool, mailbox: str, logger: Optional[Logger] = None, checkpoint_path: Optional[str | datetime] = 'checkpoint.txt', batch_size: int = 50, max_retries: int = 3):
         super().__init__(logger, checkpoint_path)
         self._host = host
         self._port = port
@@ -320,7 +325,7 @@ class IMAPProvider(BaseProvider):
 
 class GLOBProvider(BaseProvider):
     """Reads local .eml files matching glob patterns, filtered by checkpoint date/hash."""
-    def __init__(self, patterns: list[str], logger: Optional[Logger] = None, checkpoint_path: str | datetime = 'checkpoint.txt'):
+    def __init__(self, patterns: list[str], logger: Optional[Logger] = None, checkpoint_path: Optional[str | datetime] = 'checkpoint.txt'):
         super().__init__(logger, checkpoint_path)
         self._patterns = patterns
 
@@ -459,7 +464,7 @@ class GLOBProvider(BaseProvider):
         }
         return res
 
-def get_provider(config, logger: Optional[Logger] = None, checkpoint_path: str | datetime = 'checkpoint.txt') -> BaseProvider:
+def get_provider(config, logger: Optional[Logger] = None, checkpoint_path: Optional[str | datetime] = 'checkpoint.txt') -> BaseProvider:
     """Build the provider selected by config.EMAIL_PROVIDER (imap or glob)."""
     provider_type = config.EMAIL_PROVIDER.lower()
     if provider_type == "gmail":

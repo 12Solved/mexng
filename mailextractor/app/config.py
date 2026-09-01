@@ -26,6 +26,6 @@ class Config:
     GLOB_PATTERNS = os.getenv("GLOB_PATTERNS", "")
 
     # Poller checkpoint file (keep separate per provider/run to avoid clobbering the live poller's state)
-    CHECKPOINT_PATH = os.getenv("CHECKPOINT_PATH", "checkpoint.txt")
+    CHECKPOINT_PATH = os.getenv("CHECKPOINT_PATH", "checkpoint.txt") or None  # "" -> no checkpoint, fetch everything
 
 config = Config()

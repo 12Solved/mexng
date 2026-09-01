@@ -2,6 +2,20 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## feat: checkpoint-bypass for full backfill (2026-09-01)
+
+Review item #7. `CHECKPOINT_PATH=""` (or `checkpoint_path=None` on a
+provider directly) now means "no checkpoint" — every dt/hash/skip_hashes
+filter becomes a no-op and `update_checkpoint()` no-ops too, so a run always
+(re-)inserts everything it's given instead of persisting any state.
+
+`scripts/read_email.py` now sets `CHECKPOINT_PATH=""` instead of a shared
+`read_email_checkpoint.txt`, restoring the old backfill script's "always
+insert the given files" behavior — re-running it on the same files re-inserts
+them rather than silently skipping already-seen dates. Removed the now-dead
+`read_email_checkpoint.txt` gitignore entry and local file. Verified live:
+running it twice on the same fixture inserted it twice, no checkpoint file created.
+
 ## fix: default EMAIL_PROVIDER to imap, drop dead config/model (2026-09-01)
 
 Review items #4, #16, #8. `config.py`: default `EMAIL_PROVIDER` was still
