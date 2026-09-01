@@ -11,3 +11,4 @@ fastapi_pagination
 croniter
 apscheduler
 alembic
+pytest

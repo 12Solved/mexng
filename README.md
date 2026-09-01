@@ -104,6 +104,15 @@ All of the above (plus day-to-day commands) is also wrapped in a `Makefile`, bac
 | `make clean-mail` | Deletes all emails/attachments and resets all mail checkpoints (mailbox poll state, workflow checkpoints, checkpoint files). Prompts for confirmation; pass `FORCE=1` to skip it. |
 | `make test` | Runs the test suite. |
 
+### Testing
+
+`tests/` holds pytest integration tests for the poll → process pipeline (`test_poll_process_glob.py`, `test_poll_process_imap.py`). They run against a separate `db_test` Postgres database (same server as `DATABASE_URL`, fixed name regardless of your dev db's name) — it's created automatically on first run and truncated before every test, so your dev data is never touched.
+
+- The **glob** test polls the real `.eml` fixtures under `example-data/emails/`, runs them through example workflows, and asserts on the resulting db state (run success/skip, saved attachments) plus checkpoint idempotency and rollback-on-error behavior.
+- The **IMAP** test polls the real mailbox configured in `.env` (bounded to the last 7 days) and asserts the pipeline completes and every fetched email gets a terminal-state run. It's automatically skipped if `IMAP_USERNAME`/`IMAP_PASSWORD` aren't set.
+
+Run them with `make test`, or directly: `pytest tests/`.
+
 ## Usage
 
 ### Development

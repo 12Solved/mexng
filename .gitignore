@@ -37,11 +37,14 @@ credentials.json
 token.json
 
 # Testing & static analysis
-tests/
 pytest.ini
 requirements-test.txt
 ruff.toml
 ruff-report.json
+
+# Local artifacts from the db_test Postgres db used by tests/ (see tests/conftest.py)
+db_test.sql
+db_test.dump
 
 .ipynb_checkpoints/
 _dep_*

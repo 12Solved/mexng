@@ -2,6 +2,21 @@
 
 Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
 
+## feat: add poll/process pipeline tests (2026-09-01)
+
+**tests/ (new)**
+- `conftest.py`: creates/reuses a fixed-name `db_test` Postgres database (same server as `DATABASE_URL`, independent of the dev db's actual name) and truncates all tables before each test. Provides `make_config` (a plain config object injected into `poll()`/`process()`/`get_provider()`, which already take config as a parameter — no monkeypatching of the real `.env`-backed config singleton needed) and `insert_workflow`/`load_workflows` helpers; the latter loads `example-data/workflows/*.json` and rewrites any `save_attachment_step` destination into `tmp_path` so tests don't write into `./out/...` in the repo.
+- `test_poll_process_glob.py`: polls the real `example-data/emails/*.eml` fixtures via the glob provider, runs them through `date_step_invoice.json` and `sender_recipient_filter.json`, and asserts on actual outcomes (run success + saved attachment, a matching-sender/recipient run succeeding, a non-matching one landing `skipped`, re-poll idempotency). A second test confirms the deliberately-broken `no_date_header.eml` fixture makes `poll()` raise and roll back the entire batch.
+- `test_poll_process_imap.py`: polls the real mailbox from `.env` (checkpoint seeded to 7 days ago to keep each run bounded), runs whatever's found through a filter-free probe workflow, and asserts every fetched email ends up with exactly one terminal-state run plus re-poll idempotency. Skips automatically if `IMAP_USERNAME`/`IMAP_PASSWORD` aren't set.
+- `requirements.txt`: added `pytest`.
+
+**Bugfix**
+- `.gitignore` had a blanket `tests/` entry (presumably a stale placeholder from before any test suite existed) which would have silently excluded the entire new `tests/` directory from git. Removed it; kept the unrelated `pytest.ini`/`requirements-test.txt`/`ruff.*` placeholder entries.
+
+**Docs**
+- `.gitignore`: added `db_test.sql`/`db_test.dump` for local dump/backup artifacts of the `db_test` test database.
+- `README.md`: added a "Testing" section under the Makefile docs describing the `db_test` database and what the glob/IMAP tests cover.
+
 ## feat: rework Makefile into scripts/make/, add update and clean-mail targets (2026-09-01)
 
 16 files changed: 14 added, 0 deleted, 2 modified.
