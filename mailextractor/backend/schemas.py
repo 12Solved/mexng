@@ -108,6 +108,7 @@ class WorkflowSchema(BaseModel):
   workflow_json: dict
   enabled: bool
   created_at: datetime | None = None
+  user_id: int | None = None
   run_stats: WorkflowRunSummary | None = None
 
   class Config:

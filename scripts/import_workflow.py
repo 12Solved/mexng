@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 
 from mailextractor.app.config import config
 from mailextractor.models import WorkflowModel
+from mailextractor.users import get_default_user
 
 engine = create_engine(config.DATABASE_URL)
 Session = sessionmaker(bind=engine)
@@ -50,7 +51,8 @@ for workflow_path in workflow_paths:
             name=workflow_name,
             description=workflow_json.get("description"),
             workflow_json=workflow_json,
-            enabled=True
+            enabled=True,
+            user_id=get_default_user(session).id,
         )
         
         session.add(workflow)

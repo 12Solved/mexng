@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from mailextractor import models
 from mailextractor.backend import schemas
+from mailextractor.users import get_default_user
 
 
 def get_workflows(db: Session, q: str | None = None):
@@ -76,8 +77,10 @@ def get_workflow(db: Session, workflow_id: int):
     return db.query(models.WorkflowModel).filter(models.WorkflowModel.id == workflow_id).first()
 
 
-def create_workflow(db: Session, name: str, workflow_json: dict, description: str | None = None):
-    workflow = models.WorkflowModel(name=name, workflow_json=workflow_json, description=description)
+def create_workflow(db: Session, name: str, workflow_json: dict, description: str | None = None, user_id: int | None = None):
+    if user_id is None:
+        user_id = get_default_user(db).id
+    workflow = models.WorkflowModel(name=name, workflow_json=workflow_json, description=description, user_id=user_id)
     db.add(workflow)
     db.commit()
     db.refresh(workflow)
