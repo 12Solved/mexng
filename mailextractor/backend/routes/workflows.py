@@ -5,7 +5,9 @@ from sqlalchemy.orm import Session
 
 from mailextractor.backend import schemas
 from mailextractor.backend.db import get_db
+from mailextractor.backend.deps import current_user
 from mailextractor.backend.services import run_service, workflow_service
+from mailextractor.models import User
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
@@ -24,8 +26,8 @@ def get_workflow(workflow_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=schemas.WorkflowSchema)
-def create_workflow(body: schemas.WorkflowCreateBody, db: Session = Depends(get_db)):
-    return workflow_service.create_workflow(db, body.name, body.workflow_json, body.description)
+def create_workflow(body: schemas.WorkflowCreateBody, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return workflow_service.create_workflow(db, body.name, body.workflow_json, body.description, user_id=user.id)
 
 
 @router.put("/{workflow_id}", response_model=schemas.WorkflowSchema)

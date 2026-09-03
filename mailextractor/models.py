@@ -65,6 +65,13 @@ class Attachment(Base):
 
     email = relationship("Email", back_populates="attachments")
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(Text, nullable=False, unique=True)
+    email = Column(Text, nullable=True, unique=True)
+
 class WorkflowModel(Base):
     __tablename__ = "workflows"
 
@@ -74,6 +81,8 @@ class WorkflowModel(Base):
     workflow_json = Column(JSONB, nullable=False)
     enabled = Column(Boolean, server_default="true")
     created_at = Column(TIMESTAMP, server_default=func.now())
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user = relationship("User")
     runs = relationship("WorkflowRun", back_populates="workflow", passive_deletes=True)
 
 class WorkflowRun(Base):
