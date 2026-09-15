@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, Integer, Text, TIMESTAMP, Enum, ForeignKey, String, JSON, Boolean, CheckConstraint, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, Text, TIMESTAMP, Enum, ForeignKey, String, JSON, Boolean, CheckConstraint, Index
 from sqlalchemy.dialects.postgresql import JSONB, BYTEA
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
@@ -44,6 +44,13 @@ class Email(Base):
     )
     runs = relationship("WorkflowRun", back_populates="email")
 
+    def __repr__(self):
+        return (
+            f"Email(id={self.id!r}, subject={self.subject!r}, "
+            f"sender={self.sender!r}, date={self.date!r}, "
+            f"attachments={len(self.attachments)})"
+        )
+
 class Attachment(Base):
     __tablename__ = "attachments"
 
@@ -57,17 +64,6 @@ class Attachment(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     email = relationship("Email", back_populates="attachments")
-
-class MailboxState(Base):
-    __tablename__ = "mailbox_state"
-    __table_args__ = (UniqueConstraint('email_account', 'mailbox', name='_mailbox_account_uc'),)
-
-    id = Column(Integer, primary_key=True)
-    email_account = Column(Text, nullable=False)
-    mailbox = Column(Text, nullable=False, default="INBOX")
-    uidvalidity = Column(Text)
-    last_seen_uid = Column(Text)
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
 class WorkflowModel(Base):
     __tablename__ = "workflows"

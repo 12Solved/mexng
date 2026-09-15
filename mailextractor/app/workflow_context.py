@@ -10,3 +10,6 @@ class WorkflowContext:
 
   def has(self, key):
     return key in self.data
+
+  def __repr__(self):
+      return f"WorkflowContext({self.data!r})"

@@ -1,0 +1,405 @@
+# Changelog
+
+Notes on notable commits, newest first. Started 2026-09-01 — earlier history is not backfilled.
+
+## fix: poll() leaked a fresh engine/pool on every --loop tick (2026-09-01)
+
+`poll()` created a brand-new SQLAlchemy engine on every call and never
+disposed it — harmless for a one-shot invocation (process exits right
+after), but a real connection leak in `--loop` mode, where `poll()` runs on
+every scheduler tick inside one long-lived process. Left unbounded, this
+could exhaust Postgres's `max_connections` over a long-running deployment —
+potentially tripping the CRITICAL escalation from an earlier fix, a
+self-inflicted outage.
+
+Restoring a true module-level singleton engine (the old pre-refactor
+pattern) wasn't safe here: `poll(config)` deliberately creates its engine
+from *whatever config it's given* specifically so every test can point it at
+`db_test` in isolation — a global engine bound to the real `.env` config
+would've silently routed test writes through the real dev db instead.
+
+Fixed by making the engine optional: `poll(config, engine=None)` creates and
+disposes its own by default (unchanged behavior for one-shot use and every
+test), but `_run_loop()` now creates one engine (with `pool_pre_ping=True`,
+so a connection gone stale after a long idle gap is transparently replaced
+rather than erroring) and passes it into every tick's `poll()` call, reusing
+it for the life of the process; disposed on shutdown.
+
+New `tests/test_poll_engine_lifecycle.py`: `poll()` disposes an engine it
+created itself, and does not dispose one passed in externally. Also verified
+live: watched `pg_stat_activity`'s connection count across 4 real `--loop`
+ticks — stayed flat the whole time (no growth), back to baseline after the
+process was killed. Full suite: 26/26.
+
+## docs: call out read_email.py's all-or-nothing batch behavior (2026-09-01)
+
+Not a bug — `read_email.py` rolling back a whole batch on one bad file is
+the same deliberate crash-loud/skip_hashes-recovery design already used
+everywhere else, not a new regression. But it was never called out as a
+behavior difference from older per-file backfill tools, so a bulk-backfill
+run failing on one file out of many could be surprising. Documented under
+Email Providers in README, next to the `CHECKPOINT_PATH=none` backfill
+docs, with the fix (remove/fix the file, or skip-list it).
+
+## fix: FETCH-exhaustion could silently drop a batch permanently (2026-09-01)
+
+Same underlying data-loss pattern as the earlier parse-failure fix, just
+never extended to this path: a FETCH batch that exhausted all retries logged
+a WARNING and moved to the next batch — but if a later batch succeeded with
+newer dates, the checkpoint advanced past the dropped batch, permanently
+excluding it from every future SINCE search (no skip_hashes recovery, since
+nothing was ever fetched to hash).
+
+Now raises instead — checkpoint never advances past a run with a failed
+batch, so nothing is lost; next poll retries the whole UID range (some
+redundant re-fetching of batches that already succeeded that run, but safe).
+A persistently-failing batch will also trigger the CRITICAL escalation from
+the earlier `--loop` fix after 3 consecutive polls.
+
+New `tests/test_imap_fetch_exhaustion.py`: a later batch exhausting retries
+crashes without silently dropping it. Full suite: 24/24.
+
+## docs: fix 4 stale README claims (2026-09-01)
+
+Audited README.md against the current codebase. Fixed:
+
+- "Available Workflow Steps" listed 7 of the 15 registered steps — added the
+  missing 8 (`AttachmentPatternMapStep`, `ExtractArchiveStep`,
+  `ExtractExtensionStep`, `MatchSubjectStep`, `MatchMessageIdStep`,
+  `SetVariableStep`, `TimeoutStep`, `HelloStep`).
+- "Python 3.8+" prerequisite was wrong — the code uses `X | Y` union type
+  syntax (no `from __future__ import annotations`), which needs 3.10+ to
+  run at all; the Dockerfile actually targets 3.11.
+- `make clean-mail`'s table description still said "mailbox poll state"
+  (that was `MailboxState`, deleted earlier on this branch) and "checkpoint
+  files" plural (there's only one now).
+- The skip-list section only documented GLOB's `sha256(file_path)` fallback,
+  never updated to mention IMAP's parallel `sha256(uid)` fallback added
+  earlier today.
+
+Docs only, no code changes; full suite still 23/23.
+
+## refactor: de-duplicate IMAP/GLOB hashing and skip filtering (2026-09-01)
+
+Both providers' `_parse_message` independently duplicated the exact same
+dedup-hash formula and Date-header parsing, and both `iterate_mails`
+independently re-implemented the same dt/last-hash/skip_hashes checkpoint
+filtering — a future change to either risked being applied to only one
+provider, silently breaking cross-provider dedup/checkpoint compatibility.
+
+Factored both into shared `BaseProvider` methods: `_parse_date_header()` and
+`_compute_hash()` (used by both `_parse_message`s), and `_classify_mail()`
+(used by both `iterate_mails`, returns `"already_seen"`/`"skip_listed"`/`None`).
+As a side effect, IMAP's fetch-summary log now also reports a `Skipped`
+count for already-seen messages, matching GLOB's — previously only GLOB
+tracked that. Also removed a leftover dead `date = date` no-op statement in
+`IMAPProvider._parse_message`.
+
+Purely a refactor — no test changes needed, since the existing suite already
+exercises both providers' filtering paths; all 23 pass unchanged. Verified
+live against the real mailbox too: `Fetched 0 messages. Skipped 2. Skip-listed 0.`
+
+## feat: escalate log level after repeated consecutive --loop failures (2026-09-01)
+
+`_run_loop()`'s `job()` caught every `poll()` failure identically — logged
+at ERROR and retried next interval, no distinction between a one-off
+poison-pill (fine, self-heals via skip_hashes) and something persistent like
+expired IMAP credentials or a dead DB (retries forever with the same log
+level, no operator-visible signal until someone notices no mail has landed
+in hours).
+
+Extracted the retry/log logic into `LoopFailureTracker` (was an inline
+closure in `_run_loop`, not testable on its own — `_run_loop` blocks forever
+in `scheduler.start()`). It tracks consecutive failures and escalates to
+CRITICAL (distinct event type, streak count in the log) once they cross 3 in
+a row; resets to 0 on any success. Interval and process stay unchanged —
+this is purely a visibility fix for log-based monitoring/alerting.
+
+New `tests/test_loop_failure_tracker.py` (4 tests, unit-level against the
+tracker directly) plus a live check: pointed `--loop --interval 2` at a
+guaranteed-failing poll (missing-date fixture) and confirmed ticks 1-2 log
+ERROR, tick 3 onward escalates to CRITICAL with a growing count. Full suite:
+23/23.
+
+## fix: IMAP UID SEARCH failures crashed instead of degrading gracefully (2026-09-01)
+
+`IMAPProvider._fetch_uids` never checked the `status` returned by UID SEARCH
+and unconditionally indexed `data[0]`; any exception (including the one that
+caused) was logged then re-raised, aborting the whole poll. Its sibling FETCH
+step already retries transient failures with backoff — SEARCH had no such
+treatment despite being the same class of infrastructure/transient problem
+(unlike a parse failure, which is a data problem and correctly crashes loud).
+
+Gave SEARCH the same 3x exponential-backoff retry as FETCH; if it's still
+failing after retries, logs a warning and returns `[]` ("no new mail this
+cycle") instead of crashing — the checkpoint doesn't move, so nothing is
+lost, just deferred to the next poll.
+
+New `tests/test_imap_search_failure.py` (mocked IMAP connection): a
+persistent non-OK status degrades to `[]` without raising, a persistent
+exception does too, and a transient failure that recovers on retry returns
+the real UIDs. Full suite: 19/19.
+
+## fix: require explicit "none" to disable checkpointing (2026-09-01)
+
+`CHECKPOINT_PATH=""` previously meant "no checkpoint, fetch everything" —
+an accidentally-empty value (a deploy template rendering blank instead of
+omitting the var) would silently disable checkpointing in prod, causing the
+exact mass-duplicate-on-redeploy failure mode an earlier fix in this branch
+called HIGHEST PRIORITY and specifically addressed.
+
+An empty `CHECKPOINT_PATH` now falls back to the default (`checkpoint.txt`),
+same as omitting it entirely. Only the explicit sentinel `CHECKPOINT_PATH=none`
+(case-insensitive) disables checkpointing. `scripts/read_email.py` updated
+to set `"none"` instead of `""`. New `tests/test_config_checkpoint_path.py`
+(4 cases, subprocess-based since `Config` reads the env once at import time)
+locks in all four behaviors: unset, empty, `none`, and a real path. Full
+suite: 16/16.
+
+## fix: IMAP batch parse failures silently dropped messages (2026-09-01)
+
+`IMAPProvider.iterate_mails` wrapped per-message parsing inside the same
+retry loop as the network FETCH. A single malformed message deterministically
+re-failed every retry attempt (re-fetching and re-parsing the identical
+batch each time — duplicating any good messages parsed earlier in that same
+batch before finally giving up), then silently moved to the next batch,
+abandoning the whole batch including otherwise-valid messages. Since a later
+batch still advances the checkpoint's max_date, the dropped messages were
+never re-fetched on any subsequent poll — permanent, silent data loss with
+no skip_hashes recovery path (no content hash exists for a message that
+never parsed).
+
+Fixed by splitting fetch and parse: retry now covers only the network FETCH
+call; a parse failure is no longer retried (it's deterministic — retrying
+can't fix it) and propagates immediately, crashing the poll loud rather than
+being silently dropped — same philosophy as GLOBProvider's file-parse
+failures. Gave IMAP the same skip-list fallback GLOB has: a message that
+fails to parse has no content hash yet, so it's skip-listable by
+`sha256(uid)` instead.
+
+New `tests/test_imap_batch_parsing.py` (mocked IMAP connection — reproducing
+a genuine MIME parse failure against the real mailbox isn't practical):
+proves a parse failure crashes without re-fetching the batch, and that
+skip-listing the UID hash lets the rest of the batch through. Full suite
+(12/12) still passes, including the real-mailbox integration test.
+
+## fix: read_email.py argv crash, clean_mail.py ImportError, GLOB zero-match crash (2026-09-01)
+
+Three regressions from earlier commits on this branch, each caught with a
+test written first, then fixed.
+
+**#1 — `read_email.py` completely broken.** It repurposes its own argv as
+glob patterns, then delegates to `poller.main()` — which now runs argparse
+(added for `--loop` in an earlier commit) against that *same* argv,
+rejecting the .eml paths as unrecognized arguments (`SystemExit(2)`, no poll
+ever ran). Fixed by resetting `sys.argv` after consuming it, before calling
+`main()`.
+
+**#2 — `make clean-mail` completely broken.** `scripts/make/clean_mail.py`
+still imported the already-deleted `MailboxState` model (`ImportError` at
+startup, before any cleanup ran). Fixed by removing it, and refactored
+`clean_mail()` into an injectable-session function so it's actually testable
+against `db_test`. Also fixed two stale references in `clean-mail.sh` found
+in the same pass: it still mentioned/reset `read_email_checkpoint.txt`
+(removed when read_email.py stopped using a persistent checkpoint) and its
+reset JSON was missing `skip_hashes`.
+
+**#3 — GLOB pattern with zero matches crashed the poll.**
+`GLOBProvider.iterate_mails` appended the raw, unexpanded pattern string as a
+literal path whenever `glob.glob()` found zero matches — `_parse_message`
+then failed `os.path.exists()` on the wildcard itself and raised, aborting
+the whole poll instead of quietly reporting zero new emails. Under `--loop`
+this fired every single interval in the normal steady state (no new file
+dropped yet). Fixed by distinguishing a literal path (no `*`/`?`/`[`) with
+zero matches — still worth raising on, it's a missing/typo'd file — from a
+wildcard pattern with zero *current* matches, now silently skipped.
+
+New tests `tests/test_read_email_script.py`, `tests/test_clean_mail.py`,
+`tests/test_glob_zero_match.py` reproduce all three exactly as described;
+all now pass, along with the rest of the suite (10/10) — including the
+existing skip-list test that depends on a literal missing file still
+raising, confirming #3's fix doesn't overcorrect.
+
+## chore: trailing newlines (2026-09-01)
+
+Review item #18. `workflow.py`, `workflow_context.py`, `.gitignore` were
+missing a trailing newline. Cosmetic only.
+
+## feat: restore continuous polling via --loop (2026-09-01)
+
+Review item #11 — `poller.sh` dropped the old `--loop` capability with no
+replacement; nothing in the repo scheduled repeated polling.
+
+`poller.py` gains `--loop`/`--interval` (default 300s), mirroring
+`scripts/check_checkpoints.py`'s existing APScheduler pattern (same library,
+same SIGTERM/SIGINT shutdown handling). A failed poll inside the loop is
+logged and retried next interval rather than crashing the process — so
+Group 2's skip_hashes recovery works without needing a manual restart.
+`poller.sh` passes args through again. `make poll-mail` stays one-shot,
+matching `check_checkpoints.py` (no make target either); looping is opt-in
+via the raw script. `--batch`/IMAP-filter mode stays dropped, as agreed.
+
+Verified live: `--loop --interval 2` ticked 3 times against the real
+mailbox, then shut down cleanly on SIGTERM (exit 0).
+
+## feat: checkpoint-bypass for full backfill (2026-09-01)
+
+Review item #7. `CHECKPOINT_PATH=""` (or `checkpoint_path=None` on a
+provider directly) now means "no checkpoint" — every dt/hash/skip_hashes
+filter becomes a no-op and `update_checkpoint()` no-ops too, so a run always
+(re-)inserts everything it's given instead of persisting any state.
+
+`scripts/read_email.py` now sets `CHECKPOINT_PATH=""` instead of a shared
+`read_email_checkpoint.txt`, restoring the old backfill script's "always
+insert the given files" behavior — re-running it on the same files re-inserts
+them rather than silently skipping already-seen dates. Removed the now-dead
+`read_email_checkpoint.txt` gitignore entry and local file. Verified live:
+running it twice on the same fixture inserted it twice, no checkpoint file created.
+
+## fix: default EMAIL_PROVIDER to imap, drop dead config/model (2026-09-01)
+
+Review items #4, #16, #8. `config.py`: default `EMAIL_PROVIDER` was still
+`"gmail"` though Gmail support was removed (get_provider() rejects it) —
+deploys that didn't set it explicitly crashed on startup. Defaults to
+`"imap"` now. Also removed `GMAIL_CREDENTIALS_PATH`/`GMAIL_TOKEN_PATH`
+(confirmed dead — GmailProvider is gone, nothing reads these).
+
+`models.py`: removed `MailboxState` (confirmed dead — the checkpoint-file
+mechanism replaced it, nothing references it anymore) plus its now-unused
+`UniqueConstraint` import. New migration `2bb9e6b0bb89` drops the
+`mailbox_state` table; verified both directions (upgrade drops it, downgrade
+recreates it) against the dev db. `tests/conftest.py`'s truncate list updated
+to match.
+
+Dead-code cleanup, review items #9, #12: removed the unreachable `return None`
+after `raise` in `IMAPProvider._parse_message`. Removed unused imports in
+`poller.py` — `argparse` (flagged by the review) plus `math`/`time` (same
+issue, not individually called out).
+
+`processor.py` (#13, #14): `get_run_groups`'s mutable default arg
+(`re_run_workflow_ids={}`) fixed to `None` + guard. `run_dry()` was dead code
+with no per-workflow error isolation, unlike `run_db()` — kept and fixed
+(matching try/except), no caller wired up yet since none exists to wire it
+to. Also dropped a duplicate `from mailextractor.app.config import config`.
+New `tests/test_processor.py` proves one workflow raising doesn't stop the
+rest of the group from running.
+
+## feat: poison-pill skip-list + fix IMAP None-date crash (2026-09-01)
+
+Review items #1, #2, #3, #6.
+
+- Checkpoint gained `skip_hashes: list[str]`, hand-edited by an operator to
+  unwedge a poller stuck crashing on the same bad email every poll — checked
+  before any content-specific failure, so it covers any reason, not just #2.
+  For a file that fails to parse entirely (glob, #6), no content hash exists
+  yet, so it's skip-listed by `sha256(file_path)` instead.
+- Bug caught by the new tests: `update_checkpoint()` read `skip_hashes` back
+  *inside* `open(cp, "w")`, which truncates on open — every write silently
+  wiped the skip-list. Fixed (read before opening for write).
+- IMAPProvider (#2): `parsed['date'] < dt` had no None guard (GLOBProvider
+  already did) — an unparseable Date header raised a raw `TypeError` inside
+  the retry loop, silently dropping the batch instead of reaching poll()'s
+  crash.
+- poller.py (#1): missing-date crash now logs the email's hash/message_id
+  under `POISON_PILL_EMAIL` so it can be found and skip-listed.
+- poller.py (#3): comment only, no behavior change — same-second timestamp
+  collisions accepted as rare enough to ignore.
+- `tests/test_poller_skip_list.py` (new, 3 tests) — caught the truncation bug above.
+- `README.md`: documented the skip-list workflow.
+
+## fix: persist poller checkpoint across prod redeploys (2026-09-01)
+
+Review item #15 (flagged HIGHEST PRIORITY): the prod
+backend stored `checkpoint.txt` inside the container with no volume, so every
+redeploy lost it, IMAP's `SINCE` filter fell back to fetching the entire
+mailbox history, and (no unique constraint on `Email.message_id`) that meant
+mass-duplicate inserts on every redeploy.
+
+- `Dockerfile`: pinned the `mex` user to a fixed `uid=1000 gid=1000` (was
+  `-r`/auto-assigned, and conflicted with `-r`'s system-UID range once pinned
+  — dropped `-r`) so an operator can `chown` a host bind mount to a known
+  owner ahead of time. Added `mkdir -p /app/data`.
+- `docker-compose.prod.yml`: backend service now bind-mounts `./data` (host)
+  to `/app/data` (container) — a directory mount rather than mounting the
+  checkpoint file directly, so Group 2's later skip-list data has somewhere
+  to live alongside it, and so a missing host file doesn't trip Docker's
+  create-a-directory-instead footgun.
+- `.env.prod.example`: added `CHECKPOINT_PATH=/app/data/checkpoint.txt` —
+  previously unset, defaulting to relative `checkpoint.txt` (i.e.
+  `/app/checkpoint.txt`), which wasn't under any mount.
+- `.gitignore`: added `/data/` for the host-side bind mount contents.
+- `README.md`: documented `mkdir -p data && chown 1000:1000 data` as a
+  required first-deploy step under Production Deployment.
+
+Verified by building the image and bind-mounting a host dir: the non-root
+`mex` user (uid 1000) successfully wrote `checkpoint.txt` into it.
+
+## feat: add poll/process pipeline tests (2026-09-01)
+
+**tests/ (new)**
+- `conftest.py`: creates/reuses a fixed-name `db_test` Postgres database (same server as `DATABASE_URL`, independent of the dev db's actual name) and truncates all tables before each test. Provides `make_config` (a plain config object injected into `poll()`/`process()`/`get_provider()`, which already take config as a parameter — no monkeypatching of the real `.env`-backed config singleton needed) and `insert_workflow`/`load_workflows` helpers; the latter loads `example-data/workflows/*.json` and rewrites any `save_attachment_step` destination into `tmp_path` so tests don't write into `./out/...` in the repo.
+- `test_poll_process_glob.py`: polls the real `example-data/emails/*.eml` fixtures via the glob provider, runs them through `date_step_invoice.json` and `sender_recipient_filter.json`, and asserts on actual outcomes (run success + saved attachment, a matching-sender/recipient run succeeding, a non-matching one landing `skipped`, re-poll idempotency). A second test confirms the deliberately-broken `no_date_header.eml` fixture makes `poll()` raise and roll back the entire batch.
+- `test_poll_process_imap.py`: polls the real mailbox from `.env` (checkpoint seeded to 7 days ago to keep each run bounded), runs whatever's found through a filter-free probe workflow, and asserts every fetched email ends up with exactly one terminal-state run plus re-poll idempotency. Skips automatically if `IMAP_USERNAME`/`IMAP_PASSWORD` aren't set.
+- `requirements.txt`: added `pytest`.
+
+**Bugfix**
+- `.gitignore` had a blanket `tests/` entry (presumably a stale placeholder from before any test suite existed) which would have silently excluded the entire new `tests/` directory from git. Removed it; kept the unrelated `pytest.ini`/`requirements-test.txt`/`ruff.*` placeholder entries.
+
+**Docs**
+- `.gitignore`: added `db_test.sql`/`db_test.dump` for local dump/backup artifacts of the `db_test` test database.
+- `README.md`: added a "Testing" section under the Makefile docs describing the `db_test` database and what the glob/IMAP tests cover.
+
+## feat: rework Makefile into scripts/make/, add update and clean-mail targets (2026-09-01)
+
+16 files changed: 14 added, 0 deleted, 2 modified.
+
+**Makefile**
+- `Makefile`: now a thin dispatcher — every target just calls a script under `scripts/make/`. Renamed targets to be more descriptive: `setup`→`init`, `dev`→`run-app`, `down`→`kill-app`, `poll`→`poll-mail`, `process`→`process-mail`, `run`→`run-mail`. AdWded `update` (installs new deps + migrates db, for after `git pull`) and `clean-mail` (see below).
+
+**scripts/make/ (all added)**
+- `_common.sh`: shared `ROOT_DIR` + `activate_env()` helper (source venv, nenv, `.env`).
+- `db-up.sh` / `db-down.sh`: docker-compose wrappers for the mailextractor Postgres container.
+- `migrate.sh`: `alembic upgrade head`.
+- `init.sh`: first-time setup from 0 — creates `.env`/`.venv`/`.nenv`/frontend deps if missing, brings db up, migrates.
+- `update.sh`: `pip install`/`npm install` + migrate, idempotent, meant to run after every `git pull`.
+- `run-app.sh` / `kill-app.sh`: same behavior as the old `dev`/`down` targets (db up + `webserver-dev.sh`; pkill uvicorn/vite + db down).
+- `poll-mail.sh` / `process-mail.sh` / `run-mail.sh`: same behavior as the old `poll`/`process`/`run` targets.
+- `clean_mail.py` / `clean-mail.sh`: new — deletes all `emails` rows (attachments cascade via existing FK), clears `mailbox_state`, resets the `checkpoints` table's runtime fields (`status`→`never_seen`, timestamps→`NULL`, config columns untouched), and resets the on-disk `checkpoint.txt`/`read_email_checkpoint.txt` poller checkpoint files to `{"dt": null, "hash": null}`. Prompts `y/N` before running; `FORCE=1` skips the prompt.
+- `test.sh`: placeholder — runs `pytest tests/` if a suite exists under `tests/`, otherwise just says so (no test suite exists yet).
+
+**Bugfix**
+- Every script above computes its own directory into a variable that, in an earlier draft, was named `DIR`. `.nenv/bin/activate` (nodeenv) also sets an unscoped `DIR` when sourced, so `source .nenv/bin/activate` inside a script silently clobbered that script's own `$DIR` for anything called afterward (e.g. `update.sh` failed with `bash: .../.nenv/bin/migrate.sh: No such file or directory`). Renamed to `MAKE_DIR` everywhere to avoid the collision.
+
+**Docs**
+- `README.md`: added a "Makefile" section documenting all targets; updated the `make poll` reference to `make poll-mail`; noted the `make run-app`/`make poll-mail && make process-mail`/`make run-mail` shortcuts next to the manual commands.
+
+## feat: poller processor refactor (2026-09-01)
+
+19 files changed: 3 added, 2 deleted, 14 modified.
+
+**Poller**
+- `mailextractor/app/poller/provider.py` (added): new `BaseProvider`/`IMAPProvider`/`GLOBProvider` hierarchy with a shared `dt`/`hash` checkpoint file (read/write helpers, retry logic for IMAP batch fetches).
+- `mailextractor/app/poller/providers/imap_provider.py` (deleted): old UID/UIDVALIDITY-based IMAP provider, superseded by `provider.py`'s `IMAPProvider`.
+- `mailextractor/app/poller/providers/gmail_provider.py` (deleted): Gmail OAuth provider removed entirely — Gmail is no longer a supported `EMAIL_PROVIDER`.
+- `mailextractor/app/poller/poller.py` (rewritten): dropped the old CLI (`--filter`, `--batch-size`, `--from-uid`, `--reset`), the Gmail code path, and DB-backed `MailboxState` (UIDVALIDITY) tracking. Now iterates `provider.iterate_mails()`, commits once per poll run, and advances the checkpoint file.
+- `mailextractor/app/poller/email_inserter.py`: module docstring only, no logic change.
+- `scripts/poller.py` (added): thin CLI entrypoint calling `poller.main()`.
+- `scripts/poller.sh` (rewritten): now just calls `scripts/poller.py`. Dropped `--loop`, `--batch`, `--interval`, `--filter`, `--batch-size`, `--start-offset`, `--batch-delay` — no equivalent replacement.
+- `scripts/read_email.py` (rewritten): now sets `EMAIL_PROVIDER=glob` and a persistent `CHECKPOINT_PATH=read_email_checkpoint.txt`, delegating to `poller.main()` instead of its own standalone import logic.
+
+**Processor**
+- `mailextractor/app/processor/processor.py` (added): extracts `scripts/process.py`'s workflow-run logic into reusable functions (`get_workflows_from_db`, `get_emails_from_db`, `get_re_run_workflow_ids_from_db`, `get_run_groups`, `run_db`, `run_dry`, `process`, `main`).
+- `scripts/process.py` (gutted): now a thin wrapper calling `processor.main()`.
+
+**Config / docs**
+- `mailextractor/app/config.py`: added `GLOB_PATTERNS` and `CHECKPOINT_PATH` settings. `EMAIL_PROVIDER` default was left at `"gmail"` despite Gmail support being removed.
+- `.env.example`, `.env.prod.example`: documented the `imap`/`glob`/`msga` provider options (`msga` was never implemented).
+- `README.md`: added an "Email Providers" section documenting `imap`/`glob` and the checkpoint mechanism; updated run instructions to `python -m mailextractor.app.poller.poller` + `python mailextractor/app/processor/processor.py`.
+- `.gitignore`: added `.ipynb_checkpoints/`, `_dep_*`, `/dev.ipynb`, `/checkpoint.txt`, `/read_email_checkpoint.txt`.
+- `Makefile` (added): `setup`, `dev`, `db-up`/`db-down`, `migrate`, `poll`, `process`, `run` targets.
+- `requirements.txt`: added `O365` (unused).
+
+**Misc**
+- `mailextractor/models.py`: added `Email.__repr__`.
+- `mailextractor/app/workflow.py`: added `Workflow.__repr__`.
+- `mailextractor/app/workflow_context.py`: added `WorkflowContext.__repr__`.
