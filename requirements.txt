@@ -12,3 +12,4 @@ croniter
 apscheduler
 alembic
 pytest
+beautifulsoup4
