@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react'
 import ThemeToggle from './ThemeToggle'
+import { useUser } from '../context/UserContext.tsx'
+import { UserIcon } from '../assets/icons'
 
 const NAV_LINKS = [
   { to: '/', label: 'Dashboard', exact: true },
@@ -20,6 +22,7 @@ export default function Navbar() {
     return saved ? saved === 'dark' : true
   })
   const location = useLocation()
+  const { user } = useUser()
 
   useEffect(() => setOpen(false), [location.pathname])
 
@@ -54,7 +57,16 @@ export default function Navbar() {
           ))}
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-3">
+          {user && (
+            <span
+              title={user.email ?? undefined}
+              className="hidden sm:flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400"
+            >
+              <UserIcon size={16} />
+              {user.name}
+            </span>
+          )}
           <ThemeToggle />
           <button
             onClick={() => setOpen(true)}
@@ -92,6 +104,12 @@ export default function Navbar() {
                     ))}
                   </nav>
                   <div className="mt-auto px-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+                    {user && (
+                      <p className="px-4 pb-2 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+                        <UserIcon size={16} />
+                        {user.name}
+                      </p>
+                    )}
                     <p className="px-4 pb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Appearance</p>
                     <div className="flex justify-start px-1">
                       <ThemeToggle />

@@ -147,3 +147,11 @@ class RerunResponse(BaseModel):
     run: WorkflowRun
     already_queued: bool
 
+class UserSchema(BaseModel):
+  id: int
+  name: str
+  email: str | None = None
+
+  class Config:
+    from_attributes = True
+
