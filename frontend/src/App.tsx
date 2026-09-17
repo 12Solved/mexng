@@ -8,10 +8,11 @@ import Navbar from './components/Navbar'
 import WorkflowsPage from './pages/WorkflowsPage.tsx';
 import CheckpointsPage from './pages/CheckpointsPage.tsx';
 import DashboardPage from './pages/DashboardPage.tsx';
+import { UserProvider } from './context/UserContext.tsx';
 
 function App() {
   return (
-    <>
+    <UserProvider>
       <Toaster position="bottom-right" richColors />
       <div className="min-h-screen bg-background text-foreground">
         <Navbar />
@@ -26,7 +27,7 @@ function App() {
           <Route path="/checkpoints" element={<CheckpointsPage />} />
         </Routes>
       </div>
-    </>
+    </UserProvider>
   )
 }
 

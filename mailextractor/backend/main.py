@@ -14,6 +14,7 @@ from mailextractor.backend.routes import (
     runs,
     stats,
     steps,
+    users,
     workflows,
 )
 from mailextractor.models import Base
@@ -50,3 +51,4 @@ app.include_router(workflows.router)
 app.include_router(checkpoints.router)
 app.include_router(steps.router)
 app.include_router(stats.router)
+app.include_router(users.router)

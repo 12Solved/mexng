@@ -6,3 +6,4 @@ export { default as MoonIcon } from './MoonIcon';
 export { default as SunIcon } from './SunIcon';
 export { default as LinkIcon } from './LinkIcon';
 export { default as UploadIcon } from './UploadIcon';
+export { default as UserIcon } from './UserIcon';
