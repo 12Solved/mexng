@@ -98,6 +98,19 @@ class TimeoutStep(Step):
         workflow_id = context.get("workflow_id")
         now = datetime.utcnow()
 
+        if context.get("@dry_run"):
+            self.logger.info(
+                f"Dry-run: would touch checkpoint '{name}'",
+                extra={
+                    "event_type": "DRY_RUN_CHECKPOINT_TOUCH",
+                    "step": self.step_name,
+                    "email_id": getattr(email, "id", None),
+                    "workflow_id": workflow_id,
+                    "run_id": context.get("run_id"),
+                },
+            )
+            return
+
         checkpoint = session.query(models.Checkpoint).filter(models.Checkpoint.name == name).first()
         if checkpoint is None:
             # Create the checkpoint; next_expected_at starts at reference_timestamp.
