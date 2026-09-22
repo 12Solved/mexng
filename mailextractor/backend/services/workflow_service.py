@@ -100,6 +100,7 @@ def delete_workflow(db: Session, workflow_id: int):
     workflow = db.query(models.WorkflowModel).filter(models.WorkflowModel.id == workflow_id).first()
     if not workflow:
         return False
+    db.query(models.Checkpoint).filter(models.Checkpoint.workflow_id == workflow_id).delete()
     db.delete(workflow)
     db.commit()
     return True
