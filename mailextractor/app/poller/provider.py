@@ -1,7 +1,7 @@
 """Mail providers: fetch mail (IMAP or local .eml glob) into a common dict shape."""
 from abc import ABC, abstractmethod
 from typing import TypedDict, Optional, Any, Iterator
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import imaplib
 from logging import Logger
 import json
@@ -21,6 +21,12 @@ from mailextractor.models import Email, Attachment
 def _html_to_plain(html):
     soup = BeautifulSoup(html, "html.parser")
     return soup.get_text(separator="\n", strip=True)
+
+def _to_naive_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Naive UTC, avoids crashing when comparing dates that differ in tz-awareness."""
+    if dt is None or dt.tzinfo is None:
+        return dt
+    return dt.astimezone(timezone.utc).replace(tzinfo=None)
 
 class AttachmentDict(TypedDict):
     filename: str
@@ -105,7 +111,8 @@ class BaseProvider(ABC):
                 dt_raw = data.get("dt")
                 if self._logger: self._logger.info(f"Checkpoint loaded from {cp} (dt={dt_raw})", extra={"event_type": "CHECKPOINT_LOADED"})
                 return {
-                    "dt": datetime.fromisoformat(dt_raw) if dt_raw else None,
+                    # Normalize on read too, in case an old checkpoint file still holds an aware string.
+                    "dt": _to_naive_utc(datetime.fromisoformat(dt_raw)) if dt_raw else None,
                     "hash": data.get("hash"),
                     "skip_hashes": data.get("skip_hashes", []),
                 }
@@ -122,7 +129,7 @@ class BaseProvider(ABC):
         if not date_str:
             return None
         try:
-            return parsedate_to_datetime(date_str)
+            return _to_naive_utc(parsedate_to_datetime(date_str))
         except Exception:
             if self._logger: self._logger.warning(f"Could not parse date: {date_str}", extra={"event_type": event_type})
             return None
