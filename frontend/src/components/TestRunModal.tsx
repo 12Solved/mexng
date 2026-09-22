@@ -59,6 +59,9 @@ function TestRunModal({ workflowJson, workflowId, workflowName, onClose }: TestR
           ? { combinator: 'or', rules: [
               { field: 'subject', operator: 'contains', value: trimmed },
               { field: 'sender', operator: 'contains', value: trimmed },
+              ...(/^\d+$/.test(trimmed)
+                ? [{ field: 'id', operator: '=', value: Number(trimmed) }]
+                : []),
             ] }
           : undefined
         const data = await getAllEmails(1, query)
@@ -169,7 +172,7 @@ function TestRunModal({ workflowJson, workflowId, workflowName, onClose }: TestR
                   </span>
                 )}
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Dry run against &ldquo;{selected?.subject}&rdquo; — no attachments saved, no other side effects.
+                  Dry run against &ldquo;{selected?.subject}&rdquo; (#{selected?.id}) — no attachments saved, no other side effects.
                   {result.runId == null && ' Save the workflow first to keep a trace.'}
                 </p>
               </div>
@@ -288,7 +291,7 @@ function TestRunModal({ workflowJson, workflowId, workflowName, onClose }: TestR
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search by subject or sender…"
+                placeholder="Search by subject, sender, or ID…"
                 autoFocus
                 className="w-full px-2.5 py-1.5 text-sm border border-gray-300 dark:border-slate-700 rounded-md outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-white dark:bg-slate-800 text-gray-800 dark:text-slate-200 box-border transition-all"
               />
@@ -309,7 +312,10 @@ function TestRunModal({ workflowJson, workflowId, workflowName, onClose }: TestR
                           : 'bg-transparent hover:bg-gray-50 dark:hover:bg-slate-800/50'
                       }`}
                     >
-                      <div className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{email.subject || '(no subject)'}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 shrink-0">#{email.id}</span>
+                        <span className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{email.subject || '(no subject)'}</span>
+                      </div>
                       <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{email.sender} · {new Date(email.date).toLocaleString()}</div>
                     </button>
                   ))
