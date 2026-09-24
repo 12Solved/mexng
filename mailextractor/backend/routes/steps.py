@@ -45,7 +45,11 @@ def get_context_vars():
 def list_steps():
     return [
         _introspect_step(step_type, step_class)
-        for step_type, step_class in STEP_REGISTRY.items()
+        # Explicit order: registry order depends on module discovery
+        for step_type, step_class in sorted(
+            STEP_REGISTRY.items(),
+            key=lambda item: (getattr(item[1], "category", "general"), item[0]),
+        )
     ]
 
 @router.get("/steps/{step_type}")

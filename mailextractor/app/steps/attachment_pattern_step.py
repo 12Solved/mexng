@@ -11,6 +11,7 @@ class AttachmentPatternStep(Step):
   Example patterns: '*.pdf', 'invoice_*.xlsx', 'report-??-2024.csv'
   """
 
+  type = "attachment_pattern_step"
   category = "filtering"
   node_type = "default"
   args_in = {"current": "Attachment"}

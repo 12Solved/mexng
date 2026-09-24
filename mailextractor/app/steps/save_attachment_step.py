@@ -17,6 +17,7 @@ class SaveAttachmentStep(Step):
     Also updates the attachment's storage_path in the database after saving.
     """
 
+    type = "save_attachment_step"
     category = "io"
     node_type = "default"
     args_in = {"current": "Attachment"}

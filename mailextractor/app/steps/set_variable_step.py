@@ -12,6 +12,7 @@ class SetVariableStep(Step):
   security note on control-key access.
   """
 
+  type = "set_variable_step"
   category = "control"
   node_type = "default"
   args_in = {}

@@ -20,6 +20,7 @@ class AttachmentPatternMapStep(Step):
   Example: '[{"pattern": "*_CashPositions.csv", "template": "Cash_${date}.csv"}, {"pattern": "*_SecurityPositions.csv", "template": "Positions_${date}.csv"}]'
   """
 
+  type = "attachment_pattern_map_step"
   category = "filtering"
   node_type = "default"
   args_in = {"current": "Attachment"}

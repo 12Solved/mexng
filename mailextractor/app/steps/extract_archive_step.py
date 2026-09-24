@@ -20,6 +20,7 @@ class ExtractArchiveStep(Step):
   continues rather than stopping.
   """
 
+  type = "extract_archive_step"
   category = "extraction"
   node_type = "default"
   args_in = {"current": "Attachment"}

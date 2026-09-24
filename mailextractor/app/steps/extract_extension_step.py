@@ -10,6 +10,7 @@ class ExtractExtensionStep(Step):
   Sets 'ext' in context as a lowercase string without the leading dot (e.g. 'pdf', 'xlsx').
   """
 
+  type = "extract_extension_step"
   category = "extraction"
   node_type = "default"
   args_in = {"current": "Attachment"}

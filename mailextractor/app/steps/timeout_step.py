@@ -16,6 +16,7 @@ class TimeoutStep(Step):
     whether the arrival was on time and for advancing next_expected_at.
     """
 
+    type = "timeout"
     category = "control"
     node_type = "default"
     args_in = {"email": "Email"}

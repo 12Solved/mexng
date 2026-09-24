@@ -8,6 +8,7 @@ class ExtractAttachmentsStep(Step):
   Use this before a foreach step to iterate over attachments.
   """
 
+  type = "extract_attachment_step"
   category = "extraction"
   node_type = "default"
   args_in = {"email": "Email"}

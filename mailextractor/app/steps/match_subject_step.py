@@ -10,6 +10,7 @@ class MatchSubjectStep(Step):
   Stops the workflow if the subject does not match the configured pattern.
   """
 
+  type = "match_subject_step"
   category = "filtering"
   node_type = "default"
   args_in = {"email": "Email"}

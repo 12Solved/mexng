@@ -1,9 +1,10 @@
 import logging
 
-from mailextractor.app.steps.STEP_CATEGORIES import STEP_CATEGORIES
+from mailextractor.app.steps.registry import register
 
 
 class Step:
+  type = None  # registry key; None = not registered (base/helper classes)
   args_in = {}
   args_out = []
   category = "general"
@@ -12,9 +13,10 @@ class Step:
 
   def __init_subclass__(cls, **kwargs):
     super().__init_subclass__(**kwargs)
-    if cls.category not in STEP_CATEGORIES:
-      logging.getLogger(cls.__name__).error(f"{cls.__name__}: category '{cls.category}' is not in STEP_CATEGORIES")
-      raise ValueError(f"{cls.__name__}: category '{cls.category}' is not in STEP_CATEGORIES")
+    # Only classes declaring their own type are steps; otherwise a subclass
+    # of a step would inherit the parent's type and collide with it
+    if "type" in cls.__dict__ and cls.type is not None:
+      register(cls)
 
 
   def __init__(self, **config):

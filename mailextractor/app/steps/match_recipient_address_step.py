@@ -17,6 +17,7 @@ class MatchRecipientAddressStep(Step):
   Sets 'recipient_address' in context with the first matched address on success.
   """
 
+  type = "match_recipient_address_step"
   category = "filtering"
   node_type = "default"
   args_in = {"email": "Email"}

@@ -12,6 +12,7 @@ class MatchSenderAddressStep(Step):
   Sets 'sender_address' in context with the matched address on success.
   """
 
+  type = "match_sender_address_step"
   category = "filtering"
   node_type = "default"
   args_in = {"email": "Email"}

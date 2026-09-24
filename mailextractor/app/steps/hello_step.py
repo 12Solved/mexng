@@ -9,6 +9,7 @@ class HelloStep(Step):
     Prints a summary of the email to stdout.
     """
 
+    type = "hello_step"
     category = "debug"
     node_type = "default"
     args_in = {"email": "Email"}

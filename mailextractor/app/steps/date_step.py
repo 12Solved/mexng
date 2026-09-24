@@ -13,6 +13,7 @@ class DateStep(Step):
   into a configurable context variable. See docs/workflow.md for examples.
   """
 
+  type = "date_step"
   category = "extraction"
   node_type = "default"
   args_in = {"email": "Email"}

@@ -12,6 +12,7 @@ class ForEachStep(Step):
   don't bleed through to the next item.
   """
 
+  type = "foreach"
   category = "control"
   node_type = "container"
   args_in = {"collection": "any[]"}

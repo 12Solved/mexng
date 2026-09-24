@@ -10,6 +10,7 @@ class MatchMessageIdStep(Step):
   Stops the workflow if the Message-ID does not match the configured pattern.
   """
 
+  type = "match_message_id_step"
   category = "filtering"
   node_type = "default"
   args_in = {"email": "Email"}
