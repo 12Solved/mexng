@@ -16,7 +16,7 @@ from mailextractor.app.config import config
 from mailextractor.app.poller.email_inserter import insert_email
 from mailextractor.app.app_logging.setup_logging import setup_logging
 
-def poll(config, engine=None):
+def poll(config=config, engine=None):
     """Fetch new mail via the configured provider and insert it, advancing the checkpoint.
     If no engine is given, creates and disposes its own (fine for one-shot
     use, and required for tests to stay isolated to their own config's db —
