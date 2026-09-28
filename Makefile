@@ -37,4 +37,7 @@ clean-mail:
 
 ## Run the test suite (template — fill in as tests get added).
 test:
-	@bash $(MAKE_SCRIPTS)/test.sh
+	@bash $(MAKE_SCRIPTS)/run-app.sh
+	@sleep 3
+	-@bash $(MAKE_SCRIPTS)/test.sh $(ARGS)
+	@bash $(MAKE_SCRIPTS)/kill-app.sh

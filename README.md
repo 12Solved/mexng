@@ -49,7 +49,8 @@ Emails are fetched by `mailextractor/app/poller/poller.py` (via `python -m maile
 - **`imap`**: Connects to a live IMAP mailbox. Configure `IMAP_HOST`, `IMAP_PORT`, `IMAP_USERNAME`, `IMAP_PASSWORD`, `IMAP_USE_SSL`, `IMAP_MAILBOX`.
 - **`glob`**: Imports local `.eml` files instead of a live mailbox — useful for testing or backfilling from files on disk. Configure `GLOB_PATTERNS` as one or more comma-separated glob patterns, e.g. `GLOB_PATTERNS=example-data/emails/*.eml,/path/to/more/*.eml`.
 
-All providers share the same checkpointing mechanism (`checkpoint.txt` by default): each poll records the latest email date/hash it inserted, so re-running the poller only fetches emails newer than the last checkpoint instead of re-importing everything.
+All providers share the same checkpointing mechanism, except for GLOB (`checkpoint.txt` by default): each poll records the latest email date/hash it inserted, so re-running the poller only fetches emails newer than the last checkpoint instead of re-importing everything.
+GLOB re-imports everyting. GLOB should be used only for manual entry and testing!
 
 Set `CHECKPOINT_PATH=none` to disable checkpointing entirely (fetch/insert
 everything every run, e.g. for one-off backfills — this is what
@@ -151,7 +152,7 @@ All of the above (plus day-to-day commands) is also wrapped in a `Makefile`, bac
 
 `tests/` holds pytest integration tests for the poll → process pipeline (`test_poll_process_glob.py`, `test_poll_process_imap.py`). They run against a separate `db_test` Postgres database (same server as `DATABASE_URL`, fixed name regardless of your dev db's name) — it's created automatically on first run and truncated before every test, so your dev data is never touched.
 
-- The **glob** test polls the real `.eml` fixtures under `example-data/emails/`, runs them through example workflows, and asserts on the resulting db state (run success/skip, saved attachments) plus checkpoint idempotency and rollback-on-error behavior.
+- The **glob** test polls the real `.eml` fixtures under `example-data/emails/`, runs them through example workflows, and asserts on the resulting db state (run success/skip, saved attachments).
 - The **IMAP** test polls the real mailbox configured in `.env` (bounded to the last 7 days) and asserts the pipeline completes and every fetched email gets a terminal-state run. It's automatically skipped if `IMAP_USERNAME`/`IMAP_PASSWORD` aren't set.
 
 Run them with `make test`, or directly: `pytest tests/`.
