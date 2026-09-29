@@ -7,6 +7,15 @@ cd "$ROOT_DIR"
 
 source .venv/bin/activate
 
+case "$1" in
+	-h|--help)
+		ls tests/test_*.py | xargs -n1 basename
+		exit 0 ;;
+	-t|--test)
+		pytest "tests/${2%.py}.py" "${@:3}"
+		exit ;;
+esac
+
 if ls tests/test_*.py &> /dev/null 2>&1; then
 	pytest tests "$@"
 else

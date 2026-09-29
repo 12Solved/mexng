@@ -99,7 +99,7 @@ def run_db(session, groups, logger=None):
         if logger: logger.info(f"Finished process for {e.subject}", extra={"event_type": "EMAIL_PROCESSING_FINISHED", "step": "ProcessRunner", "email_id": e_id})
     return None
 
-def process(config):
+def process(config=config):
     engine = create_engine(config.DATABASE_URL)
     Session = sessionmaker(bind=engine)
     logger = setup_logging(engine)

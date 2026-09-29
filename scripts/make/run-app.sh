@@ -7,4 +7,4 @@ cd "$ROOT_DIR"
 
 bash "$MAKE_DIR/db-up.sh"
 activate_env
-bash scripts/webserver-dev.sh
+bash scripts/webserver-dev.sh &

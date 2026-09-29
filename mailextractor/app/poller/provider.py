@@ -406,7 +406,7 @@ def _is_glob_pattern(pattern: str) -> bool:
 
 class GLOBProvider(BaseProvider):
     """Reads local .eml files matching glob patterns, filtered by checkpoint date/hash."""
-    def __init__(self, patterns: list[str], logger: Optional[Logger] = None, checkpoint_path: Optional[str | datetime] = 'checkpoint.txt'):
+    def __init__(self, patterns: list[str], logger: Optional[Logger] = None, checkpoint_path: Optional[str | datetime] = None):
         super().__init__(logger, checkpoint_path)
         self._patterns = patterns
 
@@ -564,10 +564,11 @@ def get_provider(config, logger: Optional[Logger] = None, checkpoint_path: Optio
     elif provider_type == "glob":
         if not config.GLOB_PATTERNS:
             raise ValueError("GLOB_PATTERNS must be set for GLOB provider")
+        if checkpoint_path:
+            if logger: logger.info(f"Checkpoint file not supported for GLOB - polling everything!", extra={"event_type": "GLOB_CHECKPOINT"})
         provider = GLOBProvider(
             patterns=[p.strip() for p in config.GLOB_PATTERNS.split(",") if p.strip()],
-            logger = logger,
-            checkpoint_path = checkpoint_path
+            logger = logger
         )
         if logger: logger.info(f"Using GLOB provider", extra={"event_type": "PROVIDER_SELECTED"})
     else:
