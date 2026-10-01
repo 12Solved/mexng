@@ -7,9 +7,11 @@ import sys
 import os
 
 from apscheduler.schedulers.blocking import BlockingScheduler
+from sqlalchemy import create_engine
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from mailextractor.app.app_logging.setup_logging import setup_logging
 from mailextractor.app.config import config
 from mailextractor.app.poller.poller import poll
 from mailextractor.app.processor.processor import process
@@ -17,18 +19,21 @@ from scripts.check_checkpoints import check_once
 
 logger = logging.getLogger(__name__)
 
-def cycle():
+def cycle(engine):
     poll(config)
     process(config)
-    check_once()
+    check_once(config)
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--interval", type=int, default=300, help="Seconds between cycles")
     args = parser.parse_args()
 
+    engine = create_engine(config.DATABASE_URL, pool_pre_ping=True)
+    setup_logging(engine)
+
     scheduler = BlockingScheduler()
-    scheduler.add_job(cycle, "interval", seconds=args.interval, max_instances=1, coalesce=True, next_run_time=datetime.now())
+    scheduler.add_job(cycle, "interval", seconds=args.interval, max_instances=1, coalesce=True, next_run_time=datetime.now(), kwargs={"engine": engine})
 
     def shutdown(signum, frame):
         logger.info("Shutting down main loop", extra={"event_type": "MAIN_LOOP_SHUTDOWN"})
