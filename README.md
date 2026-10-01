@@ -69,7 +69,7 @@ fix is either to remove/fix the offending file, or to add it to
 the batch goes through.
 
 `make poll-mail` polls once. For continuous polling, run the poller directly
-with `--loop` (mirrors `scripts/check_checkpoints.py`'s scheduler):
+with `--loop` (mirrors `scripts/main_loop.py`'s scheduler):
 `python mailextractor/app/poller/poller.py --loop --interval 300` (default
 300s; SIGTERM/SIGINT shut it down cleanly). A failed poll is logged and
 retried next interval rather than killing the loop — but 3 failures in a row
