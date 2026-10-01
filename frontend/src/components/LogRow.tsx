@@ -123,10 +123,9 @@ export function LogIdChip({ label, val, qContext }: { label: string; val: number
 
 export function LogRow({ log, qContext }: { log: Log; qContext: string }) {
   const [expanded, setExpanded] = useState(false);
-  const hasLongMessage = (log.message?.length ?? 0) > 80;
-  const displayMessage = expanded || !hasLongMessage
-    ? (log.message ?? null)
-    : log.message!.slice(0, 80) + '…';
+  const message = log.message?.trim() || null;
+  // Long or multi-line messages (e.g. tracebacks) are clamped to a few lines until expanded
+  const hasLongMessage = message != null && (message.length > 300 || message.split('\n').length > 3);
 
   const ids = [
     log.email_id != null    && { label: 'email',    val: log.email_id },
@@ -139,34 +138,41 @@ export function LogRow({ log, qContext }: { log: Log; qContext: string }) {
     <div
       className={`border-l-4 ${LEVEL_BORDER[log.level]} ${LEVEL_ROW_BG[log.level] ?? ''} px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors`}
     >
-      <div className="flex items-start gap-3 min-w-0">
+      <div className="flex items-center gap-2 min-w-0">
         <span className={`inline-block shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded font-mono tracking-wide ${LEVEL_BADGE[log.level]}`}>
           {log.level}
         </span>
-        <span className="shrink-0 text-[11px] font-mono text-slate-400 dark:text-slate-500 pt-px whitespace-nowrap">
+        <span className="shrink-0 text-[11px] font-mono text-slate-400 dark:text-slate-500 whitespace-nowrap">
           {fmt(log.created_at)}
         </span>
-        <span className="shrink-0 text-xs font-mono font-medium text-slate-600 dark:text-slate-300 pt-px">
+        <span className="min-w-0 truncate text-[11px] font-mono text-slate-500 dark:text-slate-400">
           {log.event_type}
         </span>
-        {displayMessage && (
-          <span className="text-xs text-slate-500 dark:text-slate-400 pt-px min-w-0 break-words">
-            {displayMessage}
-            {hasLongMessage && (
-              <button
-                type="button"
-                onClick={() => setExpanded(e => !e)}
-                className="ml-1.5 text-[10px] text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 font-medium"
-              >
-                {expanded ? 'less' : 'more'}
-              </button>
-            )}
-          </span>
-        )}
       </div>
 
+      {message && (
+        <div className="mt-1">
+          <p
+            className={`text-sm leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap break-words ${
+              hasLongMessage && !expanded ? 'line-clamp-3' : ''
+            }`}
+          >
+            {message}
+          </p>
+          {hasLongMessage && (
+            <button
+              type="button"
+              onClick={() => setExpanded(e => !e)}
+              className="mt-0.5 text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium cursor-pointer"
+            >
+              {expanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
+        </div>
+      )}
+
       {(ids.length > 0 || log.step) && (
-        <div className="flex items-center gap-1.5 mt-1.5 ml-[calc(theme(spacing.3)+theme(spacing.4)+3rem)]">
+        <div className="flex items-center flex-wrap gap-1.5 mt-1.5">
           {log.step && (
             <span className={CHIP_STATIC}>step:{log.step}</span>
           )}
