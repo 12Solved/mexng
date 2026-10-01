@@ -105,7 +105,7 @@ class LoopFailureTracker:
                 )
 
 def _run_loop(interval: int) -> None:
-    """Polls repeatedly on an interval (mirrors scripts/check_checkpoints.py's
+    """Polls repeatedly on an interval (mirrors scripts/main_loop.py's
     APScheduler pattern). One engine is created here and reused for every
     tick's poll() call — poll() itself creates+disposes a fresh one per call
     by default (needed so tests stay isolated to their own config's db), but
