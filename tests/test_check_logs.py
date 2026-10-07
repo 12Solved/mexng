@@ -8,7 +8,10 @@ from mailextractor.models import Log, LogLevel
 @pytest.fixture
 def sent(monkeypatch):
     calls = []
-    monkeypatch.setattr(check_logs, "notify", lambda **kwargs: calls.append(kwargs))
+    def fake_notify(**kwargs):
+        calls.append(kwargs)
+        return True
+    monkeypatch.setattr(check_logs, "notify", fake_notify)
     return calls
 
 
@@ -54,3 +57,23 @@ def test_alert_rows_are_sent_once(db_session, run_check, sent):
     run_check()
 
     assert len(sent) == 1
+
+
+def test_failed_send_is_retried_next_tick(db_session, run_check, monkeypatch):
+    results = iter([False, True])
+    calls = []
+
+    def flaky_notify(**kwargs):
+        calls.append(kwargs)
+        return next(results)
+    monkeypatch.setattr(check_logs, "notify", flaky_notify)
+
+    run_check()
+    _add_log(db_session, "WORKFLOW_FAILED", message="boom")
+
+    run_check()  # send fails, watermark stays
+    run_check()  # retried and succeeds
+    run_check()  # nothing new
+
+    assert len(calls) == 2
+    assert "boom" in calls[1]["body"]

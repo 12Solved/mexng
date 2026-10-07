@@ -101,15 +101,22 @@ def check_once(state_file: str, config=config, engine=None):
             if row.event_type in ALERT_EVENT_TYPES
         ]
 
+        sent = True
         if alert_rows:
-            notify(
+            sent = notify(
                 subject=f"{len(alert_rows)} alert-worthy log(s) detected",
                 body=_build_digest(alert_rows),
                 recipients="",
                 meta={"count": len(alert_rows)},
             )
 
-        if new_rows:
+        if not sent:
+            # Keep the watermark so the next tick retries these rows.
+            logger.warning(
+                f"Alert digest send failed - {len(alert_rows)} row(s) will be retried",
+                extra={"event_type": "CHECK_LOGS_NOTIFY_FAILED"},
+            )
+        elif new_rows:
             _write_watermark(state_file, max(row.id for row in new_rows))
         elif not os.path.exists(state_file):
             # First run against an empty/all-historical table
