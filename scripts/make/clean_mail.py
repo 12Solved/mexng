@@ -18,6 +18,7 @@ def clean_mail(db):
     checkpoint_count = db.query(Checkpoint).update({
         Checkpoint.status: "never_seen",
         Checkpoint.last_seen_at: None,
+        Checkpoint.window_start_at: None,
         Checkpoint.last_successful: None,
         Checkpoint.last_missed: None,
     })

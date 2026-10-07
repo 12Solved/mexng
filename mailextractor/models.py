@@ -135,6 +135,7 @@ class Checkpoint(Base):
     next_expected_at = Column(TIMESTAMP, nullable=False)
     timezone = Column(Text, nullable=False, server_default="UTC")
     last_seen_at = Column(TIMESTAMP, nullable=True)
+    window_start_at = Column(TIMESTAMP, nullable=True)
     last_successful = Column(TIMESTAMP, nullable=True)
     last_missed = Column(TIMESTAMP, nullable=True)
     status = Column(String, nullable=False, server_default="never_seen")

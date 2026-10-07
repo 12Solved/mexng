@@ -1,6 +1,6 @@
 """
-Polls the `logs` table for new ERROR/CRITICAL rows matching a curated
-event_type allowlist and sends a batched digest via notify().
+Polls the `logs` table for new rows whose event_type is in ALERT_EVENT_TYPES
+and sends a batched digest via notify().
 
 Progress is tracked with a local watermark file (id of the last log row
 scanned) so a restart doesn't replay the whole history, and so a quiet tick
@@ -31,16 +31,18 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from mailextractor import models
 from mailextractor.app.app_logging.setup_logging import setup_logging
 from mailextractor.app.config import config
-from notify import notify
+from scripts.notify import notify
 
 DEFAULT_STATE_FILE = os.path.join(os.path.dirname(__file__), "check_logs_state.json")
-ALERT_EVENT_TYPES = {"PATH_JAIL_VIOLATION", "WORKFLOW_FAILED", "ARCHIVE_EXTRACT_FAILED", "CHECKPOINT_CHECK_FAILED"}
-ALERT_LEVELS = {models.LogLevel.ERROR, models.LogLevel.CRITICAL}
+ALERT_EVENT_TYPES = {
+    "PATH_JAIL_VIOLATION",
+    "WORKFLOW_FAILED",
+    "ARCHIVE_EXTRACT_FAILED",
+    "CHECKPOINT_CHECK_FAILED",
+    "CHECKPOINT_MISSED",
+}
 
-engine = create_engine(config.DATABASE_URL)
-Session = sessionmaker(bind=engine)
-
-logger = setup_logging(engine)
+logger = logging.getLogger(__name__)
 
 logging.getLogger("apscheduler").propagate = False
 
@@ -70,17 +72,20 @@ def _build_digest(rows) -> str:
     for row in rows:
         by_type[row.event_type].append(row)
 
+    # List every row: each CHECKPOINT_MISSED row names a different checkpoint.
     lines = []
     for event_type, entries in sorted(by_type.items()):
-        latest = max(entries, key=lambda r: r.id)
-        lines.append(
-            f"- {event_type}: {len(entries)} occurrence(s), latest at {latest.created_at} - {latest.message}"
-        )
+        lines.append(f"- {event_type}: {len(entries)} occurrence(s)")
+        for row in entries:
+            lines.append(f"    {row.created_at} - {row.message}")
     return "\n".join(lines)
 
 
-def check_once(state_file: str):
-    session = Session()
+def check_once(state_file: str, config=config, engine=None):
+    owns_engine = engine is None
+    if owns_engine:
+        engine = create_engine(config.DATABASE_URL)
+    session = sessionmaker(bind=engine)()
     try:
         last_log_id = _read_watermark(state_file, session)
 
@@ -93,7 +98,7 @@ def check_once(state_file: str):
 
         alert_rows = [
             row for row in new_rows
-            if row.level in ALERT_LEVELS and row.event_type in ALERT_EVENT_TYPES
+            if row.event_type in ALERT_EVENT_TYPES
         ]
 
         if alert_rows:
@@ -119,6 +124,8 @@ def check_once(state_file: str):
         logger.error("Log check failed", extra={"event_type": "CHECK_LOGS_FAILED"})
     finally:
         session.close()
+        if owns_engine:
+            engine.dispose()
 
 
 def main():
@@ -127,13 +134,16 @@ def main():
     parser.add_argument("--state-file", type=str, default=DEFAULT_STATE_FILE, help="Path to watermark state file")
     args = parser.parse_args()
 
+    engine = create_engine(config.DATABASE_URL, pool_pre_ping=True)
+    setup_logging(engine)
+
     scheduler = BlockingScheduler()
     scheduler.add_job(
         check_once,
         "interval",
         seconds=args.interval,
         next_run_time=datetime.now(),
-        kwargs={"state_file": args.state_file},
+        kwargs={"state_file": args.state_file, "engine": engine},
     )
 
     def shutdown(signum, frame):

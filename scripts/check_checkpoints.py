@@ -7,10 +7,13 @@ last_seen_at when an email arrives; this checker decides whether that arrival
 was on time or late and rolls the schedule forward.
 
 Per-checkpoint logic (runs when now > next_expected_at):
-  - If last_seen_at falls within the closed window (window_start, next_expected_at]:
+  - Window is (window_start_at, next_expected_at]; window_start_at is set to
+    now on each evaluation (fallback: one normal interval before the deadline).
+  - If last_seen_at falls within the window:
       status = "ok", next_expected_at snapped to next grid slot from reference_timestamp
   - Otherwise (no touch in the window):
-      status = "missed", next_expected_at += late_interval_hours (or normal if unset)
+      status = "missed", next_expected_at advanced by late_interval_hours (or
+      normal if unset) to the first deadline after now
 
 Status values:
   never_seen  — checkpoint has never been touched (last_seen_at is None)
@@ -33,7 +36,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from mailextractor import models
 from mailextractor.app.app_logging.setup_logging import setup_logging
 from mailextractor.app.config import config
-from scripts.notify import notify
 
 
 logger = logging.getLogger(__name__)
@@ -64,7 +66,10 @@ def check_once(config=config, engine=None):
         missed = []
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         for cp in checkpoints:
-            window_start = cp.next_expected_at - timedelta(hours=cp.normal_interval_hours)
+            # Start where the last evaluation left off so an arrival counts once.
+            window_start = cp.window_start_at or (
+                cp.next_expected_at - timedelta(hours=cp.normal_interval_hours)
+            )
             if cp.last_seen_at is None:
                 new_status = "never_seen"
             elif now > cp.next_expected_at:
@@ -77,13 +82,13 @@ def check_once(config=config, engine=None):
                         cp.reference_timestamp, cp.normal_interval_hours, now
                     )
                 else:
-                    # No touch in the window. Record the deadline that was
-                    # missed before rolling it forward.
+                    # No touch in the window. Jump past now so downtime gives one miss.
                     new_status = "missed"
                     missed.append((cp.name, cp.next_expected_at))
                     cp.last_missed = now
                     interval = cp.late_interval_hours if cp.late_interval_hours else cp.normal_interval_hours
-                    cp.next_expected_at = cp.next_expected_at + timedelta(hours=interval)
+                    cp.next_expected_at = _next_scheduled_slot(cp.next_expected_at, interval, now)
+                cp.window_start_at = now
             elif cp.status == "missed" and cp.last_seen_at <= window_start:
                 # Window still open but nothing has arrived since the miss.
                 new_status = "missed"
@@ -97,24 +102,19 @@ def check_once(config=config, engine=None):
 
         session.commit()
 
-        # Alert on every missed deadline, not only on the ok -> missed
+        # Logged on every missed window, not only on the ok -> missed
         # transition, so a feed that stays down keeps alerting each window.
-        if missed:
-            body = "\n".join(
-                f"- {name}: deadline passed at {deadline}"
-                for name, deadline in sorted(missed)
-            )
-            notify(
-                subject=f"{len(missed)} checkpoint(s) missed",
-                body=body,
-                recipients="",
-                meta={"count": len(missed)},
+        for name, deadline in sorted(missed):
+            logger.warning(
+                f"Checkpoint '{name}' missed deadline {deadline}",
+                extra={"event_type": "CHECKPOINT_MISSED"},
             )
 
-        logger.info(
-            f"Checkpoint check complete - {updated} status(es) updated",
-            extra={"event_type": "CHECKPOINT_CHECK_COMPLETE"},
-        )
+        if updated:
+            logger.info(
+                f"Checkpoint check complete - {updated} status(es) updated",
+                extra={"event_type": "CHECKPOINT_CHECK_COMPLETE"},
+            )
     except Exception:
         session.rollback()
         logger.exception("Checkpoint check failed", extra={"event_type": "CHECKPOINT_CHECK_FAILED"})
