@@ -2,14 +2,21 @@
 Operator alert channel. `notify()` emails the digest when ALERT_SMTP_* is
 configured and `recipients` are given, else prints. Never raises, never uses
 `logging` (would recurse into the DB-backed logging pipeline).
+
+Returns True when the digest was delivered (printed or sent), False when an
+SMTP send was attempted and failed, so callers can retry later.
 """
 import os
 import smtplib
+import ssl
 from email.message import EmailMessage
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+SMTP_TIMEOUT_SECONDS = 30
+IMPLICIT_TLS_PORT = 465
 
 
 def _smtp_config() -> dict | None:
@@ -40,11 +47,24 @@ def _send_email(cfg: dict, recipients: list[str], subject: str, body: str) -> No
     msg["Subject"] = subject
     msg.set_content(body)
 
-    with smtplib.SMTP(cfg["host"], cfg["port"]) as smtp:
+    # Verifies the server certificate; smtplib's default context does not.
+    context = ssl.create_default_context()
+
+    if cfg["port"] == IMPLICIT_TLS_PORT:
+        smtp = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=SMTP_TIMEOUT_SECONDS, context=context)
+    else:
+        smtp = smtplib.SMTP(cfg["host"], cfg["port"], timeout=SMTP_TIMEOUT_SECONDS)
+
+    with smtp:
         smtp.ehlo()
-        if smtp.has_extn("starttls"):
-            smtp.starttls()
-            smtp.ehlo()
+        if cfg["port"] != IMPLICIT_TLS_PORT:
+            if smtp.has_extn("starttls"):
+                smtp.starttls(context=context)
+                smtp.ehlo()
+            elif cfg["user"]:
+                # A missing STARTTLS offer may be a downgrade attack; login()
+                # would leak the password. Unauthenticated relays may go plain.
+                raise smtplib.SMTPNotSupportedError("server does not offer STARTTLS")
         if cfg["user"]:
             smtp.login(cfg["user"], cfg["password"])
         smtp.send_message(msg)
@@ -55,14 +75,16 @@ def notify(
     body: str,
     recipients: list[str] | None = None,
     meta: dict | None = None,
-) -> None:
-    cfg = _smtp_config()
-    if not recipients or cfg is None:
-        _print_digest(subject, body, meta)
-        return
-
+) -> bool:
     try:
+        cfg = _smtp_config() if recipients else None
+        if cfg is None:
+            _print_digest(subject, body, meta)
+            return True
+
         _send_email(cfg, recipients, subject, body)
+        return True
     except Exception as e:
-        print(f"[NOTIFY] SMTP send failed ({e}); falling back to print")
+        print(f"[NOTIFY] send failed ({e}); falling back to print")
         _print_digest(subject, body, meta)
+        return False
