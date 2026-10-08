@@ -6,6 +6,7 @@ from fastapi_pagination import add_pagination
 from sqlalchemy import text
 
 from mailextractor.app.app_logging.setup_logging import setup_logging
+from mailextractor.backend.auth import AuthMiddleware
 from mailextractor.backend.db import engine
 from mailextractor.backend.routes import (
     checkpoints,
@@ -34,6 +35,10 @@ setup_logging(engine)
 
 app = FastAPI()
 add_pagination(app)
+
+# Added before CORS so CORS wraps it (last added = outermost) and auth
+# failures still carry CORS headers.
+app.add_middleware(AuthMiddleware)
 
 _origins = os.getenv("CORS_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173")
 app.add_middleware(
