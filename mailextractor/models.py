@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, Integer, Text, TIMESTAMP, Enum, ForeignKey, String, JSON, Boolean, CheckConstraint, Index
+from sqlalchemy import Column, Integer, Text, TIMESTAMP, Enum, ForeignKey, String, JSON, Boolean, CheckConstraint, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, BYTEA
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
@@ -142,3 +142,43 @@ class Checkpoint(Base):
     workflow_id = Column(Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+
+class AlertRule(Base):
+    """NULL filter = any."""
+    __tablename__ = "alert_rules"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    event_type = Column(Text, nullable=True)
+    workflow_id = Column(Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=True)
+    min_level = Column(Enum(LogLevel, name="log_level"), nullable=False, server_default="WARNING")
+    enabled = Column(Boolean, nullable=False, server_default="true")
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+
+class AlertQueue(Base):
+    """Unsent rows = the user's pending digest."""
+    __tablename__ = "alert_queue"
+    __table_args__ = (
+        UniqueConstraint("user_id", "log_id", name="alert_queue_user_log_key"),
+        Index("ix_alert_queue_unsent", "user_id", "queued_at", postgresql_where=text("sent_at IS NULL")),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    log_id = Column(Integer, ForeignKey("logs.id", ondelete="CASCADE"), nullable=False)
+    queued_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    sent_at = Column(TIMESTAMP, nullable=True)
+    log = relationship("Log")
+
+
+class AlertScanState(Base):
+    """Single-row scan cursor."""
+    __tablename__ = "alert_scan_state"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="alert_scan_state_single_row"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    last_log_id = Column(Integer, nullable=False)
