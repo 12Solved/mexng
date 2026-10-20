@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { flexRender, type Table, type Row } from '@tanstack/react-table';
 import Pagination from './Pagination';
 
@@ -6,6 +7,8 @@ interface PageTableProps<T> {
   table: Table<T>;
   emptyMessage?: ReactNode;
   onRowClick?: (row: Row<T>) => void;
+  getRowHref?: (row: Row<T>) => string;
+  unlinkedColumns?: string[];
   page: number;
   pages: number;
   onPageChange: (page: number) => void;
@@ -15,6 +18,8 @@ export function PageTable<T>({
   table,
   emptyMessage = 'No results found.',
   onRowClick,
+  getRowHref,
+  unlinkedColumns = [],
   page,
   pages,
   onPageChange,
@@ -44,19 +49,30 @@ export function PageTable<T>({
               </td>
             </tr>
           ) : (
-            rows.map(row => (
-              <tr
-                key={row.id}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={`border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors${onRowClick ? ' cursor-pointer' : ''}`}
-              >
-                {row.getVisibleCells().map(cell => (
-                  <td key={cell.id} className="px-4 py-3">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))
+            rows.map(row => {
+              const href = getRowHref?.(row);
+              const rowClick = !href && onRowClick ? () => onRowClick(row) : undefined;
+              return (
+                <tr
+                  key={row.id}
+                  onClick={rowClick}
+                  className={`border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors${href || rowClick ? ' cursor-pointer' : ''}`}
+                >
+                  {row.getVisibleCells().map(cell => {
+                    const content = flexRender(cell.column.columnDef.cell, cell.getContext());
+                    if (!href || unlinkedColumns.includes(cell.column.id)) {
+                      return <td key={cell.id} className="px-4 py-3">{content}</td>;
+                    }
+                    // Padding moves onto the link so the whole cell is clickable.
+                    return (
+                      <td key={cell.id} className="p-0">
+                        <Link to={href} className="block px-4 py-3">{content}</Link>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>

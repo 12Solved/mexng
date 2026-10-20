@@ -235,7 +235,8 @@ const EmailsPage = () => {
       <PageTable
         table={table}
         emptyMessage="No emails found."
-        onRowClick={row => navigate(`/email/${row.original.id}`)}
+        getRowHref={row => `/email/${row.original.id}`}
+        unlinkedColumns={['actions']}
         page={currentPage}
         pages={totalPages}
         onPageChange={setCurrentPage}
