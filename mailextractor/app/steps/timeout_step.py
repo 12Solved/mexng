@@ -145,5 +145,6 @@ class TimeoutStep(Step):
                 "email_id": getattr(email, "id", None),
                 "workflow_id": workflow_id,
                 "run_id": context.get("run_id"),
+                "checkpoint_id": checkpoint.id,
             },
         )

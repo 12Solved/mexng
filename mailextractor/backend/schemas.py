@@ -67,6 +67,7 @@ class Log(BaseModel):
   attachment_id: int | None
   run_id: int | None
   workflow_id: int | None
+  checkpoint_id: int | None
 
   class Config:
     from_attributes = True
