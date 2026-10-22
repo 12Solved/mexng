@@ -78,6 +78,17 @@ def test_miss_log_reports_the_missed_deadline(db_session, run_check, missed):
     assert str(missed_deadline) in missed[0].getMessage()
 
 
+def test_miss_log_carries_checkpoint_and_workflow_ids(db_session, run_check, missed, insert_workflow):
+    workflow = insert_workflow({"name": "wf", "steps": []})
+    cp = _add_checkpoint(db_session, workflow_id=workflow.id)
+
+    run_check()
+
+    assert len(missed) == 1
+    assert missed[0].checkpoint_id == cp.id
+    assert missed[0].workflow_id == workflow.id
+
+
 def test_arrival_after_miss_turns_ok_while_window_open(db_session, run_check, missed):
     cp = _add_checkpoint(db_session)
     run_check()
