@@ -84,7 +84,7 @@ def check_once(config=config, engine=None):
                 else:
                     # No touch in the window. Jump past now so downtime gives one miss.
                     new_status = "missed"
-                    missed.append((cp.name, cp.next_expected_at))
+                    missed.append((cp.name, cp.next_expected_at, cp.id, cp.workflow_id))
                     cp.last_missed = now
                     interval = cp.late_interval_hours if cp.late_interval_hours else cp.normal_interval_hours
                     cp.next_expected_at = _next_scheduled_slot(cp.next_expected_at, interval, now)
@@ -104,10 +104,14 @@ def check_once(config=config, engine=None):
 
         # Logged on every missed window, not only on the ok -> missed
         # transition, so a feed that stays down keeps alerting each window.
-        for name, deadline in sorted(missed):
+        for name, deadline, checkpoint_id, workflow_id in sorted(missed):
             logger.warning(
                 f"Checkpoint '{name}' missed deadline {deadline}",
-                extra={"event_type": "CHECKPOINT_MISSED"},
+                extra={
+                    "event_type": "CHECKPOINT_MISSED",
+                    "checkpoint_id": checkpoint_id,
+                    "workflow_id": workflow_id,
+                },
             )
 
         if updated:

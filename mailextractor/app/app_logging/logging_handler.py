@@ -21,6 +21,7 @@ class LoggingHandler(logging.Handler):
         "workflow_id": getattr(record, "workflow_id",None),
         "run_id": getattr(record, "run_id", None),
         "attachment_id": getattr(record, "attachment_id", None),
+        "checkpoint_id": getattr(record, "checkpoint_id", None),
       }
       self.repo.add_log(log_data)
 
