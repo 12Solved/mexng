@@ -22,22 +22,9 @@ from mailextractor.models import Base
 
 setup_logging(engine)
 
-
-# def _init_db() -> None:
-#     # Use a PostgreSQL advisory lock so that when multiple uvicorn workers start
-#     # simultaneously they don't race to CREATE TYPE / CREATE TABLE.
-#     with engine.connect() as conn, conn.begin():
-#         conn.execute(text("SELECT pg_advisory_xact_lock(1234567890)"))
-#         Base.metadata.create_all(bind=engine)
-
-
-# _init_db()
-
 app = FastAPI()
 add_pagination(app)
 
-# Added before CORS so CORS wraps it (last added = outermost) and auth
-# failures still carry CORS headers.
 app.add_middleware(AuthMiddleware)
 
 _origins = os.getenv("CORS_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173")
