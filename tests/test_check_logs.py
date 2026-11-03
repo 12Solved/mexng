@@ -1,5 +1,5 @@
-"""scripts/check_logs.py rule matching, queueing and cursor progression."""
-from datetime import datetime
+"""scripts/check_logs.py rule matching, queueing, cursor progression and digest sending."""
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -37,8 +37,8 @@ def _add_rule(db_session, user, **filters):
     return rule
 
 
-def _add_log(db_session, event_type="WORKFLOW_FAILED", level=LogLevel.ERROR, **fields):
-    log = Log(level=level, event_type=event_type, message="msg", **fields)
+def _add_log(db_session, event_type="WORKFLOW_FAILED", level=LogLevel.ERROR, message="msg", **fields):
+    log = Log(level=level, event_type=event_type, message=message, **fields)
     db_session.add(log)
     db_session.commit()
     return log
@@ -150,3 +150,149 @@ def test_young_log_blocks_cursor(db_session, run_scan, make_user):
     # The older row isn't scanned past the younger one it follows.
     assert _queued(db_session) == []
     assert _cursor(db_session) == start
+
+
+class FakeNotify(list):
+    """Records digests instead of sending; `result` is what notify() returns."""
+    result = True
+
+    def __call__(self, subject, body, recipients=None, meta=None):
+        self.append({"subject": subject, "body": body, "recipients": recipients})
+        return self.result
+
+
+@pytest.fixture
+def sent_digests(monkeypatch):
+    fake = FakeNotify()
+    monkeypatch.setattr(check_logs, "notify", fake)
+    return fake
+
+
+def _age_queue(db_session, minutes):
+    db_session.query(AlertQueue).update(
+        {"queued_at": AlertQueue.queued_at - timedelta(minutes=minutes)}, synchronize_session=False
+    )
+    db_session.commit()
+
+
+def _unsent(db_session):
+    db_session.expire_all()
+    return sorted((row.user_id, row.log_id) for row in db_session.query(AlertQueue).filter(AlertQueue.sent_at.is_(None)))
+
+
+def test_digest_waits_for_collection_window(db_session, run_scan, make_user, sent_digests):
+    user = make_user()
+    _add_rule(db_session, user)
+    run_scan()
+    log = _add_log(db_session)
+
+    run_scan()
+
+    assert sent_digests == []
+    assert _unsent(db_session) == [(user.id, log.id)]
+
+
+def test_digest_sent_once_window_passes(db_session, run_scan, make_user, sent_digests):
+    user = make_user()
+    _add_rule(db_session, user)
+    run_scan()
+    first = _add_log(db_session, message="first")
+    second = _add_log(db_session, message="second")
+    run_scan()
+    _age_queue(db_session, 11)
+
+    run_scan()
+    run_scan()
+
+    assert len(sent_digests) == 1
+    assert sent_digests[0]["recipients"] == ["alice@example.com"]
+    assert sent_digests[0]["subject"] == "[mexng] 2 alert(s)"
+    assert "first" in sent_digests[0]["body"] and "second" in sent_digests[0]["body"]
+    assert _unsent(db_session) == []
+    assert _queued(db_session) == [(user.id, first.id), (user.id, second.id)]
+
+
+def test_digest_per_user(db_session, run_scan, make_user, sent_digests):
+    alice, bob = make_user("alice"), make_user("bob")
+    _add_rule(db_session, alice, event_type="A_EVENT")
+    _add_rule(db_session, bob, event_type="B_EVENT")
+    run_scan()
+    _add_log(db_session, "A_EVENT", message="for alice")
+    _add_log(db_session, "B_EVENT", message="for bob")
+    run_scan()
+    _age_queue(db_session, 11)
+
+    run_scan()
+
+    by_recipient = {call["recipients"][0]: call["body"] for call in sent_digests}
+    assert set(by_recipient) == {"alice@example.com", "bob@example.com"}
+    assert "for alice" in by_recipient["alice@example.com"] and "for bob" not in by_recipient["alice@example.com"]
+    assert "for bob" in by_recipient["bob@example.com"] and "for alice" not in by_recipient["bob@example.com"]
+
+
+def test_user_without_email_is_skipped(db_session, run_scan, sent_digests):
+    user = User(name="noemail")
+    db_session.add(user)
+    db_session.commit()
+    _add_rule(db_session, user)
+    run_scan()
+    log = _add_log(db_session)
+    run_scan()
+    _age_queue(db_session, 11)
+
+    run_scan()
+
+    assert sent_digests == []
+    assert _unsent(db_session) == [(user.id, log.id)]
+
+
+def test_failed_digest_stays_unsent_and_retries(db_session, run_scan, make_user, sent_digests):
+    user = make_user()
+    _add_rule(db_session, user)
+    run_scan()
+    log = _add_log(db_session)
+    run_scan()
+    _age_queue(db_session, 11)
+    sent_digests.result = False
+
+    run_scan()
+
+    assert len(sent_digests) == 1
+    assert _unsent(db_session) == [(user.id, log.id)]
+
+    sent_digests.result = True
+    run_scan()
+
+    assert len(sent_digests) == 2
+    assert _unsent(db_session) == []
+
+
+def test_logs_after_digest_start_new_window(db_session, run_scan, make_user, sent_digests):
+    user = make_user()
+    _add_rule(db_session, user)
+    run_scan()
+    _add_log(db_session)
+    run_scan()
+    _age_queue(db_session, 11)
+    run_scan()
+    later = _add_log(db_session)
+
+    run_scan()
+
+    assert len(sent_digests) == 1
+    assert _unsent(db_session) == [(user.id, later.id)]
+
+
+def test_window_is_configurable(db_session, run_scan, make_user, sent_digests):
+    user = make_user()
+    _add_rule(db_session, user)
+    run_scan()
+    _add_log(db_session)
+    run_scan()
+    _age_queue(db_session, 3)
+
+    run_scan()
+    assert sent_digests == []
+
+    run_scan(collection_window_minutes=2)
+    assert len(sent_digests) == 1
