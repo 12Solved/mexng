@@ -8,6 +8,7 @@ from sqlalchemy import text
 from mailextractor.app.app_logging.setup_logging import setup_logging
 from mailextractor.backend.db import engine
 from mailextractor.backend.routes import (
+    alert_rules,
     checkpoints,
     emails,
     logs,
@@ -52,3 +53,4 @@ app.include_router(checkpoints.router)
 app.include_router(steps.router)
 app.include_router(stats.router)
 app.include_router(users.router)
+app.include_router(alert_rules.router)
