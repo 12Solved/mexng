@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LogLevel(str, Enum):
@@ -156,3 +156,26 @@ class UserSchema(BaseModel):
   class Config:
     from_attributes = True
 
+class UserEmailBody(BaseModel):
+  # One address only: it goes straight into the digest's To header. null clears it.
+  email: str | None = Field(pattern=r"^[A-Za-z0-9._%+'-]+@[A-Za-z0-9.-]+$")
+
+class AlertRuleSchema(BaseModel):
+  id: int
+  user_id: int
+  event_type: str | None
+  workflow_id: int | None
+  checkpoint_id: int | None
+  min_level: LogLevel
+  enabled: bool
+  created_at: datetime
+
+  class Config:
+    from_attributes = True
+
+class AlertRuleBody(BaseModel):
+  event_type: str | None = Field(default=None, pattern=r"^[^\x00]*$")
+  workflow_id: int | None = None
+  checkpoint_id: int | None = None
+  min_level: LogLevel = LogLevel.WARNING
+  enabled: bool = True
