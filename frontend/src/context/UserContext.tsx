@@ -6,9 +6,10 @@ interface UserContextValue {
   user: User | null
   loading: boolean
   error: unknown
+  setUser: (user: User) => void
 }
 
-const UserContext = createContext<UserContextValue>({ user: null, loading: true, error: null })
+const UserContext = createContext<UserContextValue>({ user: null, loading: true, error: null, setUser: () => {} })
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -23,7 +24,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <UserContext.Provider value={{ user, loading, error }}>
+    <UserContext.Provider value={{ user, loading, error, setUser }}>
       {children}
     </UserContext.Provider>
   )
