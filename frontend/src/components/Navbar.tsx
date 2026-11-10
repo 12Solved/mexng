@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { to: '/logs', label: 'Logs', exact: false },
   { to: '/workflow', label: 'Workflows', exact: false },
   { to: '/checkpoints', label: 'Checkpoints', exact: false },
+  { to: '/alerts', label: 'Alerts', exact: false },
 ]
 
 

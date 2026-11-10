@@ -8,6 +8,7 @@ import Navbar from './components/Navbar'
 import WorkflowsPage from './pages/WorkflowsPage.tsx';
 import CheckpointsPage from './pages/CheckpointsPage.tsx';
 import DashboardPage from './pages/DashboardPage.tsx';
+import AlertRulesPage from './pages/AlertRulesPage.tsx';
 import { UserProvider } from './context/UserContext.tsx';
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/email/:id" element={<SingleEmailPage />} />
           <Route path="/checkpoints" element={<CheckpointsPage />} />
+          <Route path="/alerts" element={<AlertRulesPage />} />
         </Routes>
       </div>
     </UserProvider>
