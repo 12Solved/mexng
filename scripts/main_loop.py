@@ -31,13 +31,13 @@ def main():
     scheduler.add_job(cycle, "interval", seconds=args.interval, max_instances=1, coalesce=True, next_run_time=datetime.now())
 
     def shutdown(signum, frame):
-        logger.info("Shutting down main loop", extra={"event_type": "MAIN_LOOP_SHUTDOWN"})
+        logger.info("Shutting down main loop", extra={"event_type": "MAINLOOP_SHUTDOWN"})
         scheduler.shutdown(wait=True)
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
     
-    logger.info(f"Main loop started (interval: {args.interval}s)", extra={"event_type": "MAIN_LOOP_STARTED"})
+    logger.info(f"Main loop started (interval: {args.interval}s)", extra={"event_type": "MAINLOOP_STARTED"})
 
     scheduler.start()
     

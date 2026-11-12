@@ -59,7 +59,7 @@ class SetVariableStep(Step):
       self.logger.debug(
         f"SetVariableStep: '{name}' already set, skipping",
         extra={
-            "event_type": "SET_VARIABLE_SKIPPED",
+            "event_type": "STEP_SET_VARIABLE_SKIPPED",
             "step": self.step_name,
             "workflow_id": context.get("workflow_id"),
             "run_id": context.get("run_id"),
@@ -75,7 +75,7 @@ class SetVariableStep(Step):
     self.logger.info(
       f"Set context variable '{name}' = {value!r}",
       extra={
-          "event_type": "SET_VARIABLE",
+          "event_type": "STEP_SET_VARIABLE",
           "step": self.step_name,
           "workflow_id": context.get("workflow_id"),
           "run_id": context.get("run_id"),

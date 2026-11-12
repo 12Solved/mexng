@@ -36,6 +36,6 @@ def insert_email(session, email_data: dict) -> Email | None:
         ))
 
     logger.info(f"Inserted email: {email.subject!r} (message_id: {message_id})",
-                extra={"event_type": "EMAIL_INSERTED", "message_id": message_id})
+                extra={"event_type": "POLLER_EMAIL_INSERTED", "message_id": message_id})
     return email
 

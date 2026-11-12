@@ -34,3 +34,20 @@ Filter and control-flow steps (`MatchSenderAddressStep`, `MatchRecipientAddressS
 - `error: string` — workflow threw an exception
 
 The `runs` table is never touched. Logs are still written.
+
+## Event Type Prefixes
+
+Every log's `event_type` starts with a prefix naming the component that emitted it, e.g. `POLLER_IMAP_AUTH_FAILED`. The prefix is a single word (no inner `_`), so it is always the text before the first `_`, and sorting event types alphabetically groups them by component.
+
+Event types are plain inline strings (`extra={"event_type": "..."}`), not an enum. When adding a new one, use the prefix of the module it's logged from.
+
+| Prefix | Emitted by |
+|---|---|
+| `POLLER_` | `app/poller/` — poller, IMAP/GLOB providers, email inserter |
+| `PROCESSOR_` | `app/processor/processor.py` — per-email workflow runner |
+| `WORKFLOW_` | `app/workflow.py` — workflow engine |
+| `STEP_` | `app/steps/` — all steps, including `BaseStep` lifecycle events |
+| `CHECKPOINTS_` | `scripts/check_checkpoints.py` |
+| `MAINLOOP_` | `scripts/main_loop.py` |
+
+`UNKNOWN` is the fallback when a log call sets no `event_type`; it intentionally has no prefix so missing event types stand out.

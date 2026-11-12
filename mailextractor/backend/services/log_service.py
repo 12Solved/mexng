@@ -137,4 +137,5 @@ def get_log_filters(db: Session, run_id: str | None = None):
     query = select(distinct(models.Log.event_type))
     if run_id:
         query = query.where(models.Log.run_id == int(run_id))
+    query = query.order_by(models.Log.event_type)
     return db.execute(query).scalars().all()
