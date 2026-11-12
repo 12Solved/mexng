@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from mailextractor import models
 from mailextractor.app.app_logging.setup_logging import setup_logging
 from mailextractor.app.config import config
+from scripts.alert_email import format_digest
 from scripts.notify import notify
 
 # Log ids are assigned at insert but become visible at commit, so a row
@@ -78,18 +79,9 @@ def _queue_matches(session, after_id: int, up_to_id: int) -> int:
     return result.rowcount
 
 
-def _format_digest(logs) -> tuple[str, str]:
-    subject = f"[mexng] {len(logs)} alert(s)"
-    body = "\n".join(
-        f"{log.created_at} {log.level.name} {log.event_type} "
-        f"wf={log.workflow_id} cp={log.checkpoint_id} - {log.message}"
-        for log in logs
-    )
-    return subject, body
-
-
-def _send_digests(session, window: timedelta) -> tuple[int, int]:
+def _send_digests(session, window: timedelta, public_url: str) -> tuple[int, int]:
     AlertQueue, Log, User = models.AlertQueue, models.Log, models.User
+    Workflow, Email = models.WorkflowModel, models.Email
     # A user's collection window opens at their oldest unsent row.
     due_users = (
         select(AlertQueue.user_id)
@@ -98,9 +90,17 @@ def _send_digests(session, window: timedelta) -> tuple[int, int]:
         .having(func.min(AlertQueue.queued_at) <= func.localtimestamp() - window)
     )
     rows = (
-        session.query(AlertQueue.id, Log, User)
+        session.query(
+            AlertQueue.id,
+            Log,
+            User,
+            Workflow.name.label("workflow_name"),
+            Email.subject.label("email_subject"),
+        )
         .join(Log, AlertQueue.log_id == Log.id)
         .join(User, AlertQueue.user_id == User.id)
+        .outerjoin(Workflow, Log.workflow_id == Workflow.id)
+        .outerjoin(Email, Log.email_id == Email.id)
         .filter(
             AlertQueue.sent_at.is_(None),
             AlertQueue.user_id.in_(due_users),
@@ -113,8 +113,8 @@ def _send_digests(session, window: timedelta) -> tuple[int, int]:
     sent = failed = 0
     for user, group in groupby(rows, key=lambda row: row.User):
         group = list(group)
-        subject, body = _format_digest([row.Log for row in group])
-        if not notify(subject, body, recipients=[user.email], meta={"user_id": user.id}):
+        subject, body, html_body = format_digest(group, public_url)
+        if not notify(subject, body, recipients=[user.email], meta={"user_id": user.id}, html=html_body):
             failed += 1
             logger.warning(
                 f"Alert digest for user {user.id} failed, will retry",
@@ -161,7 +161,9 @@ def check_once(
             state.last_log_id = scanned[-1].id
         session.commit()
 
-        sent, failed = _send_digests(session, timedelta(minutes=collection_window_minutes))
+        sent, failed = _send_digests(
+            session, timedelta(minutes=collection_window_minutes), config.APP_PUBLIC_URL
+        )
 
         logger.info(
             f"Log scan complete - {len(scanned)} row(s) scanned, {queued} queued, "

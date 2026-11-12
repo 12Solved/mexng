@@ -1,7 +1,9 @@
 """
 Operator alert channel. `notify()` emails the digest when ALERT_SMTP_* is
-configured and `recipients` are given, else prints. Never raises, never uses
-`logging` (would recurse into the DB-backed logging pipeline).
+configured and `recipients` are given, else prints (plain text only). An
+optional `html` body is sent alongside the plain text as an alternative.
+Never raises, never uses `logging` (would recurse into the DB-backed
+logging pipeline).
 
 Returns True when the digest was delivered (printed or sent), False when an
 SMTP send was attempted and failed, so callers can retry later.
@@ -40,12 +42,15 @@ def _print_digest(subject: str, body: str, meta: dict | None) -> None:
         print(f"[NOTIFY meta] {meta}")
 
 
-def _send_email(cfg: dict, recipients: list[str], subject: str, body: str) -> None:
+def _send_email(cfg: dict, recipients: list[str], subject: str, body: str, html: str | None) -> None:
     msg = EmailMessage()
     msg["From"] = cfg["from_addr"]
     msg["To"] = ", ".join(recipients)
     msg["Subject"] = subject
     msg.set_content(body)
+    if html:
+        # multipart/alternative: clients render the HTML, plain text is the fallback.
+        msg.add_alternative(html, subtype="html")
 
     # Verifies the server certificate; smtplib's default context does not.
     context = ssl.create_default_context()
@@ -75,6 +80,7 @@ def notify(
     body: str,
     recipients: list[str] | None = None,
     meta: dict | None = None,
+    html: str | None = None,
 ) -> bool:
     try:
         cfg = _smtp_config() if recipients else None
@@ -82,7 +88,7 @@ def notify(
             _print_digest(subject, body, meta)
             return True
 
-        _send_email(cfg, recipients, subject, body)
+        _send_email(cfg, recipients, subject, body, html)
         return True
     except Exception as e:
         print(f"[NOTIFY] send failed ({e}); falling back to print")
