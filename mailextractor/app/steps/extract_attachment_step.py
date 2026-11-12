@@ -20,7 +20,7 @@ class ExtractAttachmentsStep(Step):
     self.logger.info(
       f"Attachments extracted for {getattr(email, 'subject', None)}",
       extra={
-          "event_type": "EXTRACTED_ATTACHMENT/-S",
+          "event_type": "STEP_ATTACHMENTS_EXTRACTED",
           "step": self.step_name,
           "email_id": getattr(email, "id", None),
           "workflow_id": context.get("workflow_id"),

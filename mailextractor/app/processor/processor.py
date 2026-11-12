@@ -17,7 +17,7 @@ def get_workflows_from_db(session, logger = None):
         try:
             workflows.append(Workflow(w.workflow_json, workflow_id=w.id))
         except Exception:
-            if logger: logger.exception("Failed to initialize workflow", extra={"event_type": "WORKFLOW_INIT_FAILED", "workflow_id": getattr(w, "id", None)})
+            if logger: logger.exception("Failed to initialize workflow", extra={"event_type": "PROCESSOR_WORKFLOW_INIT_FAILED", "workflow_id": getattr(w, "id", None)})
     return workflows
 
 def get_emails_from_db(session, logger = None):
@@ -63,13 +63,13 @@ def run_dry(groups, logger=None):
             try:
                 w.run(e, run_options={})
             except Exception:
-                if logger: logger.exception("Dry-run workflow execution failed", extra={"event_type": "WORKFLOW_FAILED", "email_id": e.id, "workflow_id": w.workflow_id})
+                if logger: logger.exception("Dry-run workflow execution failed", extra={"event_type": "PROCESSOR_WORKFLOW_FAILED", "email_id": e.id, "workflow_id": w.workflow_id})
     return None
 
 def run_db(session, groups, logger=None):
     for e, workflows in groups:
         e_id = e.id
-        if logger: logger.info(f"Starting process for {e.subject}", extra={"event_type": "EMAIL_PROCESSING_STARTED", "step": "ProcessRunner", "email_id": e_id,})
+        if logger: logger.info(f"Starting process for {e.subject}", extra={"event_type": "PROCESSOR_EMAIL_STARTED", "step": "ProcessRunner", "email_id": e_id,})
 
         for w in workflows:
             w_id = w.workflow_id
@@ -90,13 +90,13 @@ def run_db(session, groups, logger=None):
                 else:
                     run_state = RunState.success
             except Exception:
-                if logger: logger.exception("Workflow execution failed", extra={"event_type": "WORKFLOW_FAILED", "email_id": e_id, "workflow_id": w_id, "run_id": run.id,})
+                if logger: logger.exception("Workflow execution failed", extra={"event_type": "PROCESSOR_WORKFLOW_FAILED", "email_id": e_id, "workflow_id": w_id, "run_id": run.id,})
                 run_state = RunState.failed
 
             run.state = run_state
             session.commit()
 
-        if logger: logger.info(f"Finished process for {e.subject}", extra={"event_type": "EMAIL_PROCESSING_FINISHED", "step": "ProcessRunner", "email_id": e_id})
+        if logger: logger.info(f"Finished process for {e.subject}", extra={"event_type": "PROCESSOR_EMAIL_FINISHED", "step": "ProcessRunner", "email_id": e_id})
     return None
 
 def process(config=config):

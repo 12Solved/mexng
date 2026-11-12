@@ -102,7 +102,7 @@ class TimeoutStep(Step):
             self.logger.info(
                 f"Dry-run: would touch checkpoint '{name}'",
                 extra={
-                    "event_type": "DRY_RUN_CHECKPOINT_TOUCH",
+                    "event_type": "STEP_DRY_RUN_CHECKPOINT_TOUCH",
                     "step": self.step_name,
                     "email_id": getattr(email, "id", None),
                     "workflow_id": workflow_id,
@@ -140,7 +140,7 @@ class TimeoutStep(Step):
         self.logger.info(
             f"Checkpoint '{name}' touched",
             extra={
-                "event_type": "CHECKPOINT_TOUCHED",
+                "event_type": "STEP_CHECKPOINT_TOUCHED",
                 "step": self.step_name,
                 "email_id": getattr(email, "id", None),
                 "workflow_id": workflow_id,

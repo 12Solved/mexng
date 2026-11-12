@@ -37,7 +37,7 @@ class MatchMessageIdStep(Step):
     self.logger.info(
     "Message-ID matches",
     extra={
-        "event_type": "MESSAGE_ID_MATCHED",
+        "event_type": "STEP_MESSAGE_ID_MATCHED",
         "step": self.step_name,
         "email_id": getattr(email, "id", None),
         "workflow_id": context.get("workflow_id"),

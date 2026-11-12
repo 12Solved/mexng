@@ -22,7 +22,7 @@ class Workflow:
       logger.error(
           "Workflow missing 'steps'",
           extra={
-              "event_type": "INVALID_WORKFLOW_STRUCTURE",
+              "event_type": "WORKFLOW_INVALID_STRUCTURE",
               "workflow_json": workflow_json
           }
       )
@@ -33,7 +33,7 @@ class Workflow:
         logger.error(
         f"Unknown step type: {step_type}",
         extra={
-          "event_type": "INVALID_STEP_TYPE",
+          "event_type": "WORKFLOW_INVALID_STEP_TYPE",
           "step": step_type
         })
         raise Exception(f"Unknown step type: {step_type}")

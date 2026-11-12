@@ -102,11 +102,11 @@ def check_once():
 
         logger.info(
             f"Checkpoint check complete - {updated} status(es) updated",
-            extra={"event_type": "CHECKPOINT_CHECK_COMPLETE"},
+            extra={"event_type": "CHECKPOINTS_CHECK_COMPLETE"},
         )
     except Exception:
         session.rollback()
-        logger.error("Checkpoint check failed", extra={"event_type": "CHECKPOINT_CHECK_FAILED"})
+        logger.error("Checkpoint check failed", extra={"event_type": "CHECKPOINTS_CHECK_FAILED"})
     finally:
         session.close()
 
@@ -120,7 +120,7 @@ def main():
     scheduler.add_job(check_once, "interval", seconds=args.interval, next_run_time=datetime.now())
 
     def shutdown(signum, frame):
-        logger.info("Shutting down checkpoint scheduler", extra={"event_type": "CHECKPOINT_SCHEDULER_SHUTDOWN"})
+        logger.info("Shutting down checkpoint scheduler", extra={"event_type": "CHECKPOINTS_SCHEDULER_SHUTDOWN"})
         scheduler.shutdown(wait=False)
 
     signal.signal(signal.SIGTERM, shutdown)
@@ -128,7 +128,7 @@ def main():
 
     logger.info(
         f"Checkpoint scheduler started (interval: {args.interval}s)",
-        extra={"event_type": "CHECKPOINT_SCHEDULER_STARTED"},
+        extra={"event_type": "CHECKPOINTS_SCHEDULER_STARTED"},
     )
     scheduler.start()
 

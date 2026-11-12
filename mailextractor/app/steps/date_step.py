@@ -76,7 +76,7 @@ class DateStep(Step):
         self.logger.warning(
           "DateStep: email has no date, stopping branch",
           extra={
-              "event_type": "DATE_STEP_MISSING_EMAIL_DATE",
+              "event_type": "STEP_DATE_MISSING_EMAIL_DATE",
               "step": self.step_name,
               "email_id": getattr(email, "id", None),
               "workflow_id": context.get("workflow_id"),
@@ -114,7 +114,7 @@ class DateStep(Step):
     self.logger.info(
       f"Computed date '{formatted}' -> ${{{output_var}}}",
       extra={
-          "event_type": "DATE_COMPUTED",
+          "event_type": "STEP_DATE_COMPUTED",
           "step": self.step_name,
           "email_id": getattr(email, "id", None),
           "workflow_id": context.get("workflow_id"),

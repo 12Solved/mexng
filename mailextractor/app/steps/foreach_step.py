@@ -54,7 +54,7 @@ class ForEachStep(Step):
       self.logger.info(
       f"Running sub-workflow for {attachment_name}",
       extra={
-        "event_type": "SUB_WORKFLOW_STARTED",
+        "event_type": "STEP_SUB_WORKFLOW_STARTED",
         "step": self.step_name,
         "email_id": getattr(context.get("email"), "id", None),
         "workflow_id": context.get("workflow_id"),

@@ -37,7 +37,7 @@ class AttachmentPatternStep(Step):
       self.logger.info(
       f"Attachment {getattr(attachment, 'filename', None)} DOES NOT MATCH PATTERN",
       extra={
-          "event_type": "NEEDED_ATTACHMENT_NOT_FOUND",
+          "event_type": "STEP_NEEDED_ATTACHMENT_NOT_FOUND",
           "step": self.step_name,
           "email_id": getattr(context.get("email"), "id", None),
           "workflow_id": context.get("workflow_id"),
@@ -49,7 +49,7 @@ class AttachmentPatternStep(Step):
     self.logger.info(
     f"Attachment {getattr(attachment, 'filename', None)} MATCHES PATTERN",
     extra={
-        "event_type": "NEEDED_ATTACHMENT_FOUND",
+        "event_type": "STEP_NEEDED_ATTACHMENT_FOUND",
         "step": self.step_name,
         "email_id": getattr(context.get("email"), "id", None),
         "workflow_id": context.get("workflow_id"),

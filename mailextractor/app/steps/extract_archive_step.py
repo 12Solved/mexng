@@ -102,7 +102,7 @@ class ExtractArchiveStep(Step):
     self.logger.info(
         f"Extracted {len(extracted)} file(s) from archive '{filename}'",
         extra={
-            "event_type": "ARCHIVE_EXTRACTED",
+            "event_type": "STEP_ARCHIVE_EXTRACTED",
             "step": self.step_name,
             "email_id": getattr(email, "id", None),
             "workflow_id": context.get("workflow_id"),
@@ -153,7 +153,7 @@ class ExtractArchiveStep(Step):
           self.logger.error(
               f"Failed to extract archive '{archive_name}': '7z' binary not found on PATH",
               extra={
-                  "event_type": "ARCHIVE_TOOL_MISSING",
+                  "event_type": "STEP_ARCHIVE_TOOL_MISSING",
                   "step": self.step_name,
                   "email_id": getattr(email, "id", None),
                   "workflow_id": context.get("workflow_id"),
@@ -183,7 +183,7 @@ class ExtractArchiveStep(Step):
     self.logger.error(
         f"Failed to extract archive '{archive_name}': all password attempts failed ({last_error})",
         extra={
-            "event_type": "ARCHIVE_EXTRACT_FAILED",
+            "event_type": "STEP_ARCHIVE_EXTRACT_FAILED",
             "step": self.step_name,
             "email_id": getattr(email, "id", None),
             "workflow_id": context.get("workflow_id"),

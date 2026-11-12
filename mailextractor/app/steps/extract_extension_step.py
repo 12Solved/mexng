@@ -29,7 +29,7 @@ class ExtractExtensionStep(Step):
     self.logger.info(
       f"Extension extracted from {getattr(context.get('attachment'), 'filename', None)}",
       extra={
-          "event_type": "EXTRACTED_ATTACHMENT/-S",
+          "event_type": "STEP_ATTACHMENTS_EXTRACTED",
           "step": self.step_name,
           "email_id": getattr(context.get("email"), "id", None),
           "workflow_id": context.get("workflow_id"),
