@@ -95,6 +95,7 @@ class FakeConfig:
     IMAP_PASSWORD: str = ""
     IMAP_USE_SSL: bool = True
     IMAP_MAILBOX: str = "INBOX"
+    APP_PUBLIC_URL: str = ""
 
 
 @pytest.fixture

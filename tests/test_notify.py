@@ -1,4 +1,4 @@
-"""scripts/notify.py TLS enforcement, timeout and bool return."""
+"""scripts/notify.py TLS enforcement, timeout, bool return and HTML alternative."""
 import pytest
 
 import scripts.notify as notify_mod
@@ -33,6 +33,7 @@ class FakeSMTP:
 
     def send_message(self, msg):
         self.calls.append("send")
+        self.msg = msg
 
 
 @pytest.fixture(autouse=True)
@@ -117,3 +118,18 @@ def test_bad_port_config_returns_false_instead_of_raising(monkeypatch):
     monkeypatch.setenv("ALERT_SMTP_PORT", "abc")
 
     assert _send() is False
+
+
+def test_html_is_sent_as_alternative_to_plain_text():
+    assert notify_mod.notify("subj", "plain body", recipients=["ops@example.com"], html="<p>rich</p>") is True
+
+    msg = FakeSMTP.instances[0].msg
+    assert msg.get_content_type() == "multipart/alternative"
+    assert msg.get_body(("plain",)).get_content().strip() == "plain body"
+    assert msg.get_body(("html",)).get_content().strip() == "<p>rich</p>"
+
+
+def test_without_html_message_stays_plain_text():
+    assert _send() is True
+
+    assert FakeSMTP.instances[0].msg.get_content_type() == "text/plain"

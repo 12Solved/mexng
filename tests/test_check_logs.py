@@ -4,7 +4,10 @@ from datetime import datetime, timedelta
 import pytest
 
 import scripts.check_logs as check_logs
-from mailextractor.models import AlertQueue, AlertRule, AlertScanState, Checkpoint, Log, LogLevel, User, WorkflowModel
+from mailextractor.models import (
+    AlertQueue, AlertRule, AlertScanState, Attachment, Checkpoint, Email, Log, LogLevel, RunState, User,
+    WorkflowModel, WorkflowRun,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -156,8 +159,8 @@ class FakeNotify(list):
     """Records digests instead of sending; `result` is what notify() returns."""
     result = True
 
-    def __call__(self, subject, body, recipients=None, meta=None):
-        self.append({"subject": subject, "body": body, "recipients": recipients})
+    def __call__(self, subject, body, recipients=None, meta=None, html=None):
+        self.append({"subject": subject, "body": body, "recipients": recipients, "html": html})
         return self.result
 
 
@@ -296,3 +299,100 @@ def test_window_is_configurable(db_session, run_scan, make_user, sent_digests):
 
     run_scan(collection_window_minutes=2)
     assert len(sent_digests) == 1
+
+
+PUBLIC_URL = "https://mexng.example.com/app/"
+
+
+@pytest.fixture
+def send_digest(db_session, make_config, test_engine, make_user, sent_digests):
+    """Queues the given log fields for one user, ages the queue and returns the digest body."""
+    def _send(public_url=PUBLIC_URL, **log_fields):
+        user = make_user()
+        _add_rule(db_session, user)
+        scan = lambda: check_logs.check_once(
+            make_config(APP_PUBLIC_URL=public_url), engine=test_engine, safety_margin_seconds=0
+        )
+        scan()
+        _add_log(db_session, **log_fields)
+        scan()
+        _age_queue(db_session, 11)
+        scan()
+        assert len(sent_digests) == 1
+        return sent_digests[0]["body"]
+    return _send
+
+
+def _add_linked_entities(db_session, subject="Your March invoice"):
+    workflow = WorkflowModel(name="Invoices", workflow_json={})
+    email = Email(subject=subject)
+    db_session.add_all([workflow, email])
+    db_session.commit()
+    run = WorkflowRun(workflow_id=workflow.id, email_id=email.id, state=RunState.failed)
+    attachment = Attachment(email_id=email.id, filename="invoice.pdf")
+    db_session.add_all([run, attachment])
+    db_session.commit()
+    return dict(workflow_id=workflow.id, email_id=email.id, run_id=run.id, attachment_id=attachment.id)
+
+
+def test_digest_links_each_mentioned_view(db_session, send_digest, sent_digests):
+    ids = _add_linked_entities(db_session)
+
+    body = send_digest(**ids)
+
+    base = "https://mexng.example.com/app"
+    wf, em, run, att = ids["workflow_id"], ids["email_id"], ids["run_id"], ids["attachment_id"]
+    assert f"  Workflow: Invoices (#{wf})  {base}/workflow/{wf}" in body
+    assert f'  Email: "Your March invoice" (#{em})  {base}/email/{em}' in body
+    assert f"  Run #{run} logs  {base}/logs?q=run:{run}" in body
+    assert f"  Attachment #{att} logs  {base}/logs?q=attachment:{att}" in body
+
+    html = sent_digests[0]["html"]
+    assert f'<a href="{base}/workflow/{wf}" style="color:#2563eb">Workflow: Invoices (#{wf})</a>' in html
+    assert f'href="{base}/email/{em}" style="color:#2563eb">Email: &quot;Your March invoice&quot; (#{em})</a>' in html
+    assert f'href="{base}/logs?q=run:{run}"' in html
+    assert f'href="{base}/logs?q=attachment:{att}"' in html
+
+
+def test_digest_links_only_mentioned_views(db_session, send_digest):
+    workflow = WorkflowModel(name="Invoices", workflow_json={})
+    db_session.add(workflow)
+    db_session.commit()
+
+    body = send_digest(workflow_id=workflow.id)
+
+    assert "/workflow/" in body
+    assert "Email:" not in body and "Run #" not in body and "Attachment #" not in body
+
+
+def test_digest_email_without_subject_shows_id(db_session, send_digest):
+    ids = _add_linked_entities(db_session, subject=None)
+
+    body = send_digest(email_id=ids["email_id"])
+
+    assert f"  Email: (#{ids['email_id']})  https://mexng.example.com/app/email/{ids['email_id']}" in body
+
+
+def test_digest_has_no_links_without_public_url(db_session, send_digest, sent_digests):
+    ids = _add_linked_entities(db_session)
+
+    body = send_digest(public_url="", **ids)
+
+    assert "http" not in body
+    assert len(body.splitlines()) == 1
+    # HTML still names everything the log mentions, just unlinked.
+    html = sent_digests[0]["html"]
+    assert "<a " not in html
+    assert f"Workflow: Invoices (#{ids['workflow_id']})" in html
+    assert f"Run #{ids['run_id']} logs" in html
+
+
+def test_html_digest_escapes_db_values(db_session, send_digest, sent_digests):
+    ids = _add_linked_entities(db_session, subject="<b>hi</b>")
+
+    send_digest(email_id=ids["email_id"], message="<script>x</script>")
+
+    html = sent_digests[0]["html"]
+    assert "<script>" not in html and "<b>hi</b>" not in html
+    assert "&lt;script&gt;x&lt;/script&gt;" in html
+    assert "&lt;b&gt;hi&lt;/b&gt;" in html

@@ -32,4 +32,8 @@ class Config:
     _checkpoint_path_raw = os.getenv("CHECKPOINT_PATH", "checkpoint.txt") or "checkpoint.txt"
     CHECKPOINT_PATH = None if _checkpoint_path_raw.strip().lower() == "none" else _checkpoint_path_raw
 
+    # Public address of the frontend (scheme + host + base path), used to build links in alert emails.
+    # Empty means alert emails go out without links.
+    APP_PUBLIC_URL = os.getenv("APP_PUBLIC_URL", "")
+
 config = Config()
