@@ -49,5 +49,6 @@ Event types are plain inline strings (`extra={"event_type": "..."}`), not an enu
 | `STEP_` | `app/steps/` — all steps, including `BaseStep` lifecycle events |
 | `CHECKPOINTS_` | `scripts/check_checkpoints.py` |
 | `MAINLOOP_` | `scripts/main_loop.py` |
+| `CHECKLOGS_` | `scripts/check_logs.py` |
 
 `UNKNOWN` is the fallback when a log call sets no `event_type`; it intentionally has no prefix so missing event types stand out.

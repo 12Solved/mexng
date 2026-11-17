@@ -91,12 +91,12 @@ def test_filters_match_exact_or_any(db_session, run_scan, make_user):
     )
     db_session.add_all([workflow, checkpoint])
     db_session.commit()
-    _add_rule(db_session, user, event_type="CHECKPOINT_MISSED", checkpoint_id=checkpoint.id)
+    _add_rule(db_session, user, event_type="CHECKPOINTS_MISSED", checkpoint_id=checkpoint.id)
     _add_rule(db_session, user, workflow_id=workflow.id)
     run_scan()
 
-    hit_checkpoint = _add_log(db_session, "CHECKPOINT_MISSED", LogLevel.WARNING, checkpoint_id=checkpoint.id)
-    _add_log(db_session, "CHECKPOINT_MISSED", LogLevel.WARNING)  # wrong checkpoint
+    hit_checkpoint = _add_log(db_session, "CHECKPOINTS_MISSED", LogLevel.WARNING, checkpoint_id=checkpoint.id)
+    _add_log(db_session, "CHECKPOINTS_MISSED", LogLevel.WARNING)  # wrong checkpoint
     _add_log(db_session, "OTHER_EVENT", checkpoint_id=checkpoint.id)  # wrong event type
     hit_workflow = _add_log(db_session, "ANY_EVENT", workflow_id=workflow.id)
 
@@ -133,7 +133,7 @@ def test_own_events_are_not_queued(db_session, run_scan, make_user):
     user = make_user()
     _add_rule(db_session, user, min_level=LogLevel.DEBUG)
     run_scan()
-    _add_log(db_session, "CHECK_LOGS_FAILED")
+    _add_log(db_session, "CHECKLOGS_FAILED")
 
     run_scan()
 

@@ -23,7 +23,7 @@ def missed():
 
     class _Capture(logging.Handler):
         def emit(self, record):
-            if getattr(record, "event_type", None) == "CHECKPOINT_MISSED":
+            if getattr(record, "event_type", None) == "CHECKPOINTS_MISSED":
                 records.append(record)
 
     handler = _Capture()

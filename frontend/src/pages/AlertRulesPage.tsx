@@ -14,7 +14,7 @@ import { useReactTable, getCoreRowModel, type ColumnDef } from '@tanstack/react-
 import { useUser } from '../context/UserContext';
 
 // check_logs never alerts on its own events, so don't suggest them.
-const SELF_EVENT_PREFIX = 'CHECK_LOGS_';
+const SELF_EVENT_PREFIX = 'CHECKLOGS_';
 
 // Rules only store IDs, and both lists are paginated, so walk every page.
 async function loadAll<T>(fetchPage: (p: number) => Promise<{ items: T[]; pages: number }>): Promise<T[]> {
