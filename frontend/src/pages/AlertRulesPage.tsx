@@ -11,6 +11,7 @@ import { PageTable } from '../components/PageTable';
 import { LEVEL_BADGE } from '../components/LogRow';
 import AlertRuleModal, { type CheckpointOption, type WorkflowOption } from '../components/AlertRuleModal';
 import { useReactTable, getCoreRowModel, type ColumnDef } from '@tanstack/react-table';
+import { useUser } from '../context/UserContext';
 
 // check_logs never alerts on its own events, so don't suggest them.
 const SELF_EVENT_PREFIX = 'CHECK_LOGS_';
@@ -62,6 +63,12 @@ const AlertRulesPage = () => {
   }, []);
 
   useEffect(() => { fetchRules(page); }, [page, fetchRules]);
+
+  const { user, loading: userLoading } = useUser();
+  useEffect(() => {
+    if (userLoading || !user || user.email) return;
+    toast.warning('No email is configured for your user, so alert rules will not send anything.', { id: 'no-alert-email' });
+  }, [user, userLoading]);
 
   useEffect(() => {
     loadAll(getWorkflows)

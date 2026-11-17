@@ -1,4 +1,4 @@
-"""Main loop: poll -> process -> checkpoint check, every --interval seconds."""
+"""Main loop: poll -> process -> checkpoint check -> log check, every --interval seconds."""
 import argparse
 import logging
 import signal
@@ -16,6 +16,7 @@ from mailextractor.app.config import config
 from mailextractor.app.poller.poller import poll
 from mailextractor.app.processor.processor import process
 from scripts.check_checkpoints import check_once
+from scripts.check_logs import check_once as check_logs_once
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ def cycle(engine):
     poll(config)
     process(config)
     check_once(config)
+    check_logs_once(config)
 
 def main():
     parser = argparse.ArgumentParser()
