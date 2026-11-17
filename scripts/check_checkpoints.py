@@ -108,43 +108,24 @@ def check_once(config=config, engine=None):
             logger.warning(
                 f"Checkpoint '{name}' missed deadline {deadline}",
                 extra={
-                    "event_type": "CHECKPOINT_MISSED",
+                    "event_type": "CHECKPOINTS_MISSED",
                     "checkpoint_id": checkpoint_id,
                     "workflow_id": workflow_id,
                 },
             )
 
-        logger.info(
-            f"Checkpoint check complete - {updated} status(es) updated",
-            extra={"event_type": "CHECKPOINT_CHECK_COMPLETE"},
-        )
+        if updated:
+            logger.info(
+                f"Checkpoint check complete - {updated} status(es) updated",
+                extra={"event_type": "CHECKPOINTS_CHECK_COMPLETE"},
+            )
     except Exception:
         session.rollback()
-        logger.error("Checkpoint check failed", extra={"event_type": "CHECKPOINTS_CHECK_FAILED"})
+        logger.exception("Checkpoint check failed", extra={"event_type": "CHECKPOINTS_CHECK_FAILED"})
     finally:
         session.close()
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--interval", type=int, default=300, help="Seconds between checks (default: 300)")
-    args = parser.parse_args()
-
-    scheduler = BlockingScheduler()
-    scheduler.add_job(check_once, "interval", seconds=args.interval, next_run_time=datetime.now())
-
-    def shutdown(signum, frame):
-        logger.info("Shutting down checkpoint scheduler", extra={"event_type": "CHECKPOINTS_SCHEDULER_SHUTDOWN"})
-        scheduler.shutdown(wait=False)
-
-    signal.signal(signal.SIGTERM, shutdown)
-    signal.signal(signal.SIGINT, shutdown)
-
-    logger.info(
-        f"Checkpoint scheduler started (interval: {args.interval}s)",
-        extra={"event_type": "CHECKPOINTS_SCHEDULER_STARTED"},
-    )
-    scheduler.start()
+        if owns_engine:
+            engine.dispose()
 
 
 if __name__ == "__main__":

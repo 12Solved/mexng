@@ -39,7 +39,7 @@ SAFETY_MARGIN_SECONDS = 10
 
 # The checker's own events are never queued, so a failing scan can't
 # alert about itself in a loop.
-SELF_EVENT_PREFIX = "CHECK_LOGS_"
+SELF_EVENT_PREFIX = "CHECKLOGS_"
 
 # Minutes to keep collecting alerts after a user's first unsent one before the digest goes out.
 COLLECTION_WINDOW_MINUTES = int(os.getenv("ALERT_COLLECTION_WINDOW_MINUTES", "10"))
@@ -116,7 +116,7 @@ def _send_digests(session, window: timedelta, public_url: str) -> tuple[int, int
             failed += 1
             logger.warning(
                 f"Alert digest for user {user.id} failed, will retry",
-                extra={"event_type": "CHECK_LOGS_DIGEST_FAILED"},
+                extra={"event_type": "CHECKLOGS_DIGEST_FAILED"},
             )
             continue
         # Mark only the rows that went out; rows queued meanwhile wait for the next digest.
@@ -166,11 +166,11 @@ def check_once(
         logger.info(
             f"Log scan complete - {len(scanned)} row(s) scanned, {queued} queued, "
             f"{sent} digest(s) sent, {failed} failed",
-            extra={"event_type": "CHECK_LOGS_COMPLETE"},
+            extra={"event_type": "CHECKLOGS_COMPLETE"},
         )
     except Exception:
         session.rollback()
-        logger.error("Log check failed", extra={"event_type": "CHECK_LOGS_FAILED"})
+        logger.error("Log check failed", extra={"event_type": "CHECKLOGS_FAILED"})
     finally:
         session.close()
         if owns_engine:
@@ -197,7 +197,7 @@ def main():
     )
 
     def shutdown(signum, frame):
-        logger.info("Shutting down log scheduler", extra={"event_type": "CHECK_LOGS_SCHEDULER_SHUTDOWN"})
+        logger.info("Shutting down log scheduler", extra={"event_type": "CHECKLOGS_SCHEDULER_SHUTDOWN"})
         scheduler.shutdown(wait=False)
 
     signal.signal(signal.SIGTERM, shutdown)
@@ -205,7 +205,7 @@ def main():
 
     logger.info(
         f"Log scheduler started (interval: {args.interval}s)",
-        extra={"event_type": "CHECK_LOGS_SCHEDULER_STARTED"},
+        extra={"event_type": "CHECKLOGS_SCHEDULER_STARTED"},
     )
     scheduler.start()
 
