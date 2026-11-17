@@ -38,6 +38,19 @@ function AnyLabel() {
   return <span className="text-xs text-slate-400">Any</span>;
 }
 
+// One filter cell: the rule's regex if it has one, else the exact value, else "Any".
+function FilterCell({ pattern, caseSensitive, exact }: { pattern: string | null; caseSensitive: boolean; exact: React.ReactNode }) {
+  if (pattern) {
+    return (
+      <span className="font-mono text-xs text-slate-800 dark:text-slate-100" title={caseSensitive ? 'Regex, case-sensitive' : 'Regex, case-insensitive'}>
+        /{pattern}/{caseSensitive ? '' : 'i'}
+      </span>
+    );
+  }
+  // exact is falsy (null / false / "") when the rule has no exact filter.
+  return exact || <AnyLabel />;
+}
+
 const AlertRulesPage = () => {
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [page, setPage] = useState(1);
@@ -143,30 +156,39 @@ const AlertRulesPage = () => {
     {
       header: 'Event type',
       accessorKey: 'event_type',
-      cell: ({ getValue }) => {
-        const v = getValue<string | null>();
-        return v
-          ? <span className="font-mono text-xs text-slate-800 dark:text-slate-100">{v}</span>
-          : <AnyLabel />;
-      },
+      cell: ({ row: { original: r } }) => (
+        <FilterCell
+          pattern={r.event_type_pattern}
+          caseSensitive={r.patterns_case_sensitive}
+          exact={r.event_type && <span className="font-mono text-xs text-slate-800 dark:text-slate-100">{r.event_type}</span>}
+        />
+      ),
     },
     {
       header: 'Workflow',
       accessorKey: 'workflow_id',
-      cell: ({ getValue }) => {
-        const id = getValue<number | null>();
-        if (id === null) return <AnyLabel />;
-        return <span className="text-sm text-slate-700 dark:text-slate-200">{workflowNames.get(id) ?? `#${id}`}</span>;
-      },
+      cell: ({ row: { original: r } }) => (
+        <FilterCell
+          pattern={r.workflow_name_pattern}
+          caseSensitive={r.patterns_case_sensitive}
+          exact={r.workflow_id !== null && (
+            <span className="text-sm text-slate-700 dark:text-slate-200">{workflowNames.get(r.workflow_id) ?? `#${r.workflow_id}`}</span>
+          )}
+        />
+      ),
     },
     {
       header: 'Checkpoint',
       accessorKey: 'checkpoint_id',
-      cell: ({ getValue }) => {
-        const id = getValue<number | null>();
-        if (id === null) return <AnyLabel />;
-        return <span className="text-sm text-slate-700 dark:text-slate-200">{checkpointNames.get(id) ?? `#${id}`}</span>;
-      },
+      cell: ({ row: { original: r } }) => (
+        <FilterCell
+          pattern={r.checkpoint_name_pattern}
+          caseSensitive={r.patterns_case_sensitive}
+          exact={r.checkpoint_id !== null && (
+            <span className="text-sm text-slate-700 dark:text-slate-200">{checkpointNames.get(r.checkpoint_id) ?? `#${r.checkpoint_id}`}</span>
+          )}
+        />
+      ),
     },
     {
       header: 'Min level',
