@@ -105,6 +105,54 @@ def test_filters_match_exact_or_any(db_session, run_scan, make_user):
     assert _queued(db_session) == [(user.id, hit_checkpoint.id), (user.id, hit_workflow.id)]
 
 
+def test_name_patterns_match_workflow_and_checkpoint(db_session, run_scan, make_user):
+    user = make_user()
+    invoices = WorkflowModel(name="Invoices EU", workflow_json={})
+    other = WorkflowModel(name="Reports", workflow_json={})
+    checkpoint = Checkpoint(
+        name="daily-invoice", reference_timestamp=datetime(2026, 1, 1), normal_interval_hours=24,
+        next_expected_at=datetime(2026, 1, 2),
+    )
+    db_session.add_all([invoices, other, checkpoint])
+    db_session.commit()
+    _add_rule(db_session, user, workflow_name_pattern="^invoices")
+    _add_rule(db_session, user, checkpoint_name_pattern="^daily-")
+    run_scan()
+
+    hit_workflow = _add_log(db_session, workflow_id=invoices.id)
+    _add_log(db_session, workflow_id=other.id)  # name doesn't match
+    _add_log(db_session)  # no workflow or checkpoint: a name pattern never matches
+    hit_checkpoint = _add_log(db_session, "CHECKPOINTS_MISSED", checkpoint_id=checkpoint.id)
+
+    run_scan()
+
+    assert _queued(db_session) == [(user.id, hit_workflow.id), (user.id, hit_checkpoint.id)]
+
+
+def test_event_type_pattern(db_session, run_scan, make_user):
+    user = make_user()
+    _add_rule(db_session, user, event_type_pattern="^POLLER_")
+    run_scan()
+    hit = _add_log(db_session, "POLLER_IMAP_AUTH_FAILED")
+    _add_log(db_session, "PROCESSOR_STEP_FAILED")
+
+    run_scan()
+
+    assert _queued(db_session) == [(user.id, hit.id)]
+
+
+def test_patterns_case_sensitive_option(db_session, run_scan, make_user):
+    alice, bob = make_user("alice"), make_user("bob")
+    _add_rule(db_session, alice, event_type_pattern="^poller_")
+    _add_rule(db_session, bob, event_type_pattern="^poller_", patterns_case_sensitive=True)
+    run_scan()
+    log = _add_log(db_session, "POLLER_IMAP_AUTH_FAILED")
+
+    run_scan()
+
+    assert _queued(db_session) == [(alice.id, log.id)]
+
+
 def test_disabled_rule_is_ignored(db_session, run_scan, make_user):
     user = make_user()
     _add_rule(db_session, user, enabled=False)

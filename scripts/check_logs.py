@@ -47,10 +47,26 @@ COLLECTION_WINDOW_MINUTES = int(os.getenv("ALERT_COLLECTION_WINDOW_MINUTES", "10
 logger = logging.getLogger(__name__)
 
 
+def _pattern_matches(column, pattern):
+    """NULL pattern = any. Otherwise a Postgres regex match, case-insensitive unless the
+    rule says otherwise. A NULL column (e.g. a log with no workflow) never matches a pattern."""
+    AlertRule = models.AlertRule
+    return or_(
+        pattern.is_(None),
+        and_(AlertRule.patterns_case_sensitive.is_(True), column.op("~")(pattern)),
+        and_(AlertRule.patterns_case_sensitive.is_(False), column.op("~*")(pattern)),
+    )
+
+
 def _queue_matches(session, after_id: int, up_to_id: int) -> int:
     Log, AlertRule = models.Log, models.AlertRule
+    Workflow, Checkpoint = models.WorkflowModel, models.Checkpoint
     matches = (
         select(AlertRule.user_id, Log.id)
+        .select_from(Log)
+        # Name patterns match the workflow's / checkpoint's current name.
+        .outerjoin(Workflow, Log.workflow_id == Workflow.id)
+        .outerjoin(Checkpoint, Log.checkpoint_id == Checkpoint.id)
         .join(
             AlertRule,
             and_(
@@ -58,6 +74,9 @@ def _queue_matches(session, after_id: int, up_to_id: int) -> int:
                 or_(AlertRule.event_type.is_(None), AlertRule.event_type == Log.event_type),
                 or_(AlertRule.workflow_id.is_(None), AlertRule.workflow_id == Log.workflow_id),
                 or_(AlertRule.checkpoint_id.is_(None), AlertRule.checkpoint_id == Log.checkpoint_id),
+                _pattern_matches(Log.event_type, AlertRule.event_type_pattern),
+                _pattern_matches(Workflow.name, AlertRule.workflow_name_pattern),
+                _pattern_matches(Checkpoint.name, AlertRule.checkpoint_name_pattern),
                 # log_level is a Postgres enum, ordered DEBUG < ... < CRITICAL.
                 Log.level >= AlertRule.min_level,
             ),

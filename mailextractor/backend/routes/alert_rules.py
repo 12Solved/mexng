@@ -37,6 +37,8 @@ def create_alert_rule(body: schemas.AlertRuleBody, db: Session = Depends(get_db)
     _require_targets(db, fields)
     try:
         return alert_rule_service.create_alert_rule(db, user.id, fields)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except IntegrityError:
         db.rollback()
         raise _target_gone()
@@ -48,6 +50,8 @@ def update_alert_rule(rule_id: int, body: schemas.AlertRuleBody, db: Session = D
     _require_targets(db, fields)
     try:
         rule = alert_rule_service.update_alert_rule(db, rule_id, user.id, fields)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except IntegrityError:
         db.rollback()
         raise _target_gone()
