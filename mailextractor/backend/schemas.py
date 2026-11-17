@@ -157,8 +157,7 @@ class UserSchema(BaseModel):
     from_attributes = True
 
 class UserEmailBody(BaseModel):
-  # One address only: it goes straight into the digest's To header. null clears it.
-  email: str | None = Field(pattern=r"^[A-Za-z0-9._%+'-]+@[A-Za-z0-9.-]+$")
+  email: str | None = Field(pattern=r"^[A-Za-z0-9._%+'-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$")
 
 class AlertRuleSchema(BaseModel):
   id: int

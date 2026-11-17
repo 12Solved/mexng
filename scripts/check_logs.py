@@ -46,8 +46,6 @@ COLLECTION_WINDOW_MINUTES = int(os.getenv("ALERT_COLLECTION_WINDOW_MINUTES", "10
 
 logger = logging.getLogger(__name__)
 
-logging.getLogger("apscheduler").propagate = False
-
 
 def _queue_matches(session, after_id: int, up_to_id: int) -> int:
     Log, AlertRule = models.Log, models.AlertRule
@@ -183,6 +181,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--interval", type=int, default=300, help="Seconds between checks (default: 300)")
     args = parser.parse_args()
+
+    logging.getLogger("apscheduler").propagate = False
 
     engine = create_engine(config.DATABASE_URL, pool_pre_ping=True)
     setup_logging(engine)
