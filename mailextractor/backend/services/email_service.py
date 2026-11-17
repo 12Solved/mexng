@@ -7,11 +7,13 @@ from urllib.parse import quote
 
 from fastapi_pagination.ext.sqlalchemy import paginate
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session, joinedload
 
 from mailextractor import models
 from mailextractor.backend import schemas
 from mailextractor.backend.utils.query_filter import build_filter
+from mailextractor.backend.utils.regex import pg_regex_error
 
 
 def get_emails(db: Session, filter_query: dict | None = None, workflow_id: int | None = None, run_state: str | None = None):
@@ -28,7 +30,15 @@ def get_emails(db: Session, filter_query: dict | None = None, workflow_id: int |
     if filter_query and filter_query.get("rules"):
         query = query.where(build_filter(models.Email, filter_query))
 
-    emails = paginate(db, query)
+    try:
+        emails = paginate(db, query)
+    except DBAPIError as e:
+        # A "matches" pattern Postgres rejects: report it (the route returns 400) instead of a 500.
+        error = pg_regex_error(e)
+        if error is None:
+            raise
+        db.rollback()
+        raise ValueError(error) from e
     result = []
     for email in emails.items:
         runs = db.query(models.WorkflowRun).filter(models.WorkflowRun.email_id == email.id).all()

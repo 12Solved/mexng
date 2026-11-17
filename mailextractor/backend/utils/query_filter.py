@@ -1,5 +1,3 @@
-import re
-
 from sqlalchemy import and_, or_
 
 
@@ -41,10 +39,7 @@ def build_filter(model, group: dict):
       case ">=":
         clauses.append(col >= val)
       case "matches":
-        try:
-          re.compile(val)
-        except re.error as e:
-          raise ValueError(f"Invalid regex for field '{rule['field']}': {e}") from e
+        # An invalid pattern is reported by Postgres when the query runs (see get_emails).
         clauses.append(col.op("~*")(val))
 
   return and_(*clauses) if combinator == "and" else or_(*clauses)
