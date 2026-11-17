@@ -154,6 +154,11 @@ class AlertRule(Base):
     event_type = Column(Text, nullable=True)
     workflow_id = Column(Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=True)
     checkpoint_id = Column(Integer, ForeignKey("checkpoints.id", ondelete="CASCADE"), nullable=True)
+    # Regex alternatives to the exact filters above; a rule sets one or the other per target.
+    event_type_pattern = Column(Text, nullable=True)
+    workflow_name_pattern = Column(Text, nullable=True)
+    checkpoint_name_pattern = Column(Text, nullable=True)
+    patterns_case_sensitive = Column(Boolean, nullable=False, server_default="false")
     min_level = Column(Enum(LogLevel, name="log_level"), nullable=False, server_default="WARNING")
     enabled = Column(Boolean, nullable=False, server_default="true")
     created_at = Column(TIMESTAMP, server_default=func.now())
