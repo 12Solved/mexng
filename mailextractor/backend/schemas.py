@@ -165,6 +165,10 @@ class AlertRuleSchema(BaseModel):
   event_type: str | None
   workflow_id: int | None
   checkpoint_id: int | None
+  event_type_pattern: str | None
+  workflow_name_pattern: str | None
+  checkpoint_name_pattern: str | None
+  patterns_case_sensitive: bool
   min_level: LogLevel
   enabled: bool
   created_at: datetime
@@ -176,5 +180,10 @@ class AlertRuleBody(BaseModel):
   event_type: str | None = Field(default=None, pattern=r"^[^\x00]*$")
   workflow_id: int | None = None
   checkpoint_id: int | None = None
+  # Regex alternatives to the exact filters; null = any. min_length: an empty regex would match everything.
+  event_type_pattern: str | None = Field(default=None, min_length=1, pattern=r"^[^\x00]*$")
+  workflow_name_pattern: str | None = Field(default=None, min_length=1, pattern=r"^[^\x00]*$")
+  checkpoint_name_pattern: str | None = Field(default=None, min_length=1, pattern=r"^[^\x00]*$")
+  patterns_case_sensitive: bool = False
   min_level: LogLevel = LogLevel.WARNING
   enabled: bool = True
