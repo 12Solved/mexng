@@ -59,6 +59,9 @@ function TestRunModal({ workflowJson, workflowId, workflowName, onClose }: TestR
           ? { combinator: 'or', rules: [
               { field: 'subject', operator: 'contains', value: trimmed },
               { field: 'sender', operator: 'contains', value: trimmed },
+              ...(/^\d+$/.test(trimmed)
+                ? [{ field: 'id', operator: '=', value: Number(trimmed) }]
+                : []),
             ] }
           : undefined
         const data = await getAllEmails(1, query)
@@ -169,7 +172,7 @@ function TestRunModal({ workflowJson, workflowId, workflowName, onClose }: TestR
                   </span>
                 )}
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Dry run against &ldquo;{selected?.subject}&rdquo; — no attachments saved, no other side effects.
+                  Dry run against &ldquo;{selected?.subject}&rdquo; (#{selected?.id}) — no attachments saved, no other side effects.
                   {result.runId == null && ' Save the workflow first to keep a trace.'}
                 </p>
               </div>
@@ -288,7 +291,7 @@ function TestRunModal({ workflowJson, workflowId, workflowName, onClose }: TestR
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search by subject or sender…"
+                placeholder="Search by subject, sender, or ID…"
                 autoFocus
                 className="w-full px-2.5 py-1.5 text-sm border border-gray-300 dark:border-slate-700 rounded-md outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-white dark:bg-slate-800 text-gray-800 dark:text-slate-200 box-border transition-all"
               />
@@ -303,14 +306,17 @@ function TestRunModal({ workflowJson, workflowId, workflowName, onClose }: TestR
                     <button
                       key={email.id}
                       onClick={() => setSelected(email)}
-                      className={`w-full text-left px-3 py-2 border-b last:border-b-0 border-gray-50 dark:border-slate-800 transition-colors cursor-pointer ${
+                      className={`w-full flex items-start gap-3 text-left px-3 py-2 border-b last:border-b-0 border-gray-50 dark:border-slate-800 transition-colors cursor-pointer ${
                         selected?.id === email.id
                           ? 'bg-blue-50 dark:bg-blue-900/20'
                           : 'bg-transparent hover:bg-gray-50 dark:hover:bg-slate-800/50'
                       }`}
                     >
-                      <div className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{email.subject || '(no subject)'}</div>
-                      <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{email.sender} · {new Date(email.date).toLocaleString()}</div>
+                      <span className="w-9 shrink-0 text-xs font-mono text-gray-400 dark:text-slate-500">#{email.id}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{email.subject || '(no subject)'}</div>
+                        <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{email.sender} · {new Date(email.date).toLocaleString()}</div>
+                      </div>
                     </button>
                   ))
                 )}
