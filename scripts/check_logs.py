@@ -189,7 +189,7 @@ def check_once(
         )
     except Exception:
         session.rollback()
-        logger.error("Log check failed", extra={"event_type": "CHECKLOGS_FAILED"})
+        logger.exception("Log check failed", extra={"event_type": "CHECKLOGS_FAILED"})
     finally:
         session.close()
         if owns_engine:
