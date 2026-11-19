@@ -4,9 +4,6 @@ configured and `recipients` are given, else prints (plain text only). An
 optional `html` body is sent alongside the plain text as an alternative.
 Never raises, never uses `logging` (would recurse into the DB-backed
 logging pipeline).
-
-Returns True when the digest was delivered (printed or sent), False when an
-SMTP send was attempted and failed, so callers can retry later.
 """
 import os
 import smtplib
@@ -83,10 +80,15 @@ def notify(
     html: str | None = None,
 ) -> bool:
     try:
-        cfg = _smtp_config() if recipients else None
-        if cfg is None:
+        if not recipients:
             _print_digest(subject, body, meta)
             return True
+
+        cfg = _smtp_config()
+        if cfg is None:
+            print("[NOTIFY] ALERT_SMTP_HOST not set; not sent, falling back to print")
+            _print_digest(subject, body, meta)
+            return False
 
         _send_email(cfg, recipients, subject, body, html)
         return True
