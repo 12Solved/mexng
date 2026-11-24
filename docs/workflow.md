@@ -452,3 +452,50 @@ Because every match produces its own copy, one archive member can now match
 several `pattern_map` entries and be saved once per match (e.g. once as a
 dated feed file and again as an audit copy under a different name) — the
 old first-match-wins behavior only ever produced a single save.
+## Checkpoints (`timeout`)
+
+Monitors that a matching email is processed on a recurring schedule.
+`TimeoutStep` only records an arrival (`last_seen_at = now`);
+`scripts/check_checkpoints.py` (run by `main_loop.py`) evaluates it and moves
+the schedule.
+
+**What counts as an arrival.** The workflow has to *reach* the step. Any
+earlier step that `@stop`s (`match_*` filters, ...) or raises prevents it, so
+placement decides what gets validated. Steps after it can't undo an arrival.
+Arrival time is processing time, not the email's `Date`.
+
+Placed at the end of a workflow, a checkpoint therefore doubles as a partial
+validation: the email matched every filter and nothing failed. It does not
+confirm that the expected attachments arrived — `foreach` clears `@stop` when
+the loop ends, so an email with no matching attachment still records an
+arrival.
+
+```json
+[
+  { "type": "match_sender_address_step", "config": { "pattern": "@bank\\.example$" } },
+  { "type": "match_subject_step", "config": { "pattern": "Daily.*Report" } },
+  { "type": "timeout", "config": { "checkpoint": "bank-daily", "reference_timestamp": "2026-01-01T09:00:00Z", "normal_interval_hours": 24 } }
+]
+```
+
+Config:
+
+| Field                   | Meaning |
+|-------------------------|---------|
+| `checkpoint`            | required. Globally unique name; workflows using the same name share one checkpoint |
+| `reference_timestamp`   | required. First deadline, and anchor of the schedule grid (`reference + k × normal`). UTC |
+| `normal_interval_hours` | required. Expected period |
+| `late_interval_hours`   | optional. Re-check cadence after a miss; defaults to normal |
+
+The checkpoint is created on its first arrival, and config is read only then
+— to change it, delete the checkpoint on the Checkpoints page. Nothing is
+monitored before the first arrival, or after `make clean-mail` until the next
+one: if it never comes, no miss is reported.
+
+**Schedule.** With deadline `D`, the window is `(D − normal, D]`. Once `D`
+passes, the checker asks whether anything arrived in the window:
+
+- **yes** → `ok`; `D` moves to the next grid slot after now
+- **no** → `missed`; `D += late`. Repeats while nothing arrives. An arrival
+  in the (extended) window is marked `ok` once that `D` passes, which returns
+  `D` to the grid.

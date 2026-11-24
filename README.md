@@ -229,7 +229,7 @@ scripts/               # Utility scripts
 - `ForEachStep`: Iterate over collections
 - `DateStep`: Compute a date/time (now, the email's date, or an explicit/referenced value), apply a day/hour offset, and format it with a Python `strftime` pattern into a configurable context variable
 - `SetVariableStep`: Set an arbitrary context variable, including reserved control keys like `@dry_run`/`@stop`
-- `TimeoutStep`: Record that a named SLA checkpoint (the `checkpoints` table, unrelated to the poller's own checkpoint file) was touched by an incoming email
+- `TimeoutStep`: Record that a named SLA checkpoint (the `checkpoints` table, unrelated to the poller's own checkpoint file) was touched by an incoming email — see [docs/workflow.md](docs/workflow.md#checkpoints-timeout)
 - `HelloStep`: Print a summary of the email to stdout — for debugging workflows
 
 See [docs/workflow.md](docs/workflow.md) for workflow configuration details.
