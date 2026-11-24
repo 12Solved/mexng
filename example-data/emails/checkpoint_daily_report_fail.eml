@@ -1,0 +1,10 @@
+From: Reporting Bot <reports@retail-analytics.com>
+To: ops@ourcompany.com
+Subject: Report generation failed - 2026-11-25
+Date: Wed, 25 Nov 2026 06:00:00 +0000
+Message-ID: <20261125.dsr.0001@retail-analytics.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+The daily sales report could not be generated today.

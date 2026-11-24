@@ -1,0 +1,14 @@
+{
+  "name": "Checkpoint: daily sales report",
+  "description": "Exercises the timeout step. Only emails whose subject contains 'Daily Sales Report' reach the timeout step, which touches the 'daily-sales-report' checkpoint (created on first touch, 1h normal / 1h late interval). Note that the step stamps last_seen_at with processing time, not the email's Date header. Use with example-data/emails/checkpoint_daily_report_pass.eml (subject matches, checkpoint touched; check_checkpoints.py marks it 'ok' once next_expected_at passes) or checkpoint_daily_report_fail.eml (subject doesn't match, the timeout step never runs; process only this one and check_checkpoints.py marks the existing checkpoint 'missed' at the next deadline). Process the pass email first so the checkpoint exists.",
+  "steps": [
+    { "type": "match_subject_step", "config": { "pattern": "Daily Sales Report" } },
+    { "type": "timeout", "config": {
+        "checkpoint": "daily-sales-report",
+        "reference_timestamp": "2026-01-01T00:00:00Z",
+        "normal_interval_hours": 1,
+        "late_interval_hours": 1,
+        "timezone": "UTC"
+    } }
+  ]
+}
