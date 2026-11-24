@@ -1,6 +1,7 @@
 import re
 from email.utils import parseaddr
 
+from mailextractor.app.app_logging import event_types
 from .base_step import Step
 
 
@@ -44,7 +45,7 @@ class MatchSenderAddressStep(Step):
     self.logger.info(
     "Sender address matches",
     extra={
-        "event_type": "STEP_SENDER_MATCHED",
+        "event_type": event_types.STEP_SENDER_MATCHED,
         "step": self.step_name,
         "email_id": getattr(email, "id", None),
         "workflow_id": context.get("workflow_id"),

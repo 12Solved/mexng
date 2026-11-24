@@ -1,3 +1,4 @@
+from mailextractor.app.app_logging import event_types
 from .base_step import Step
 
 TRUE_LITERALS = {"true", "1", "yes", "on", "enable", "enabled"}
@@ -59,7 +60,7 @@ class SetVariableStep(Step):
       self.logger.debug(
         f"SetVariableStep: '{name}' already set, skipping",
         extra={
-            "event_type": "STEP_SET_VARIABLE_SKIPPED",
+            "event_type": event_types.STEP_SET_VARIABLE_SKIPPED,
             "step": self.step_name,
             "workflow_id": context.get("workflow_id"),
             "run_id": context.get("run_id"),
@@ -75,7 +76,7 @@ class SetVariableStep(Step):
     self.logger.info(
       f"Set context variable '{name}' = {value!r}",
       extra={
-          "event_type": "STEP_SET_VARIABLE",
+          "event_type": event_types.STEP_SET_VARIABLE,
           "step": self.step_name,
           "workflow_id": context.get("workflow_id"),
           "run_id": context.get("run_id"),

@@ -36,6 +36,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from mailextractor import models
 from mailextractor.app.app_logging.setup_logging import setup_logging
 from mailextractor.app.config import config
+from mailextractor.app.app_logging import event_types
 
 
 logger = logging.getLogger(__name__)
@@ -108,7 +109,7 @@ def check_once(config=config, engine=None):
             logger.warning(
                 f"Checkpoint '{name}' missed deadline {deadline}",
                 extra={
-                    "event_type": "CHECKPOINTS_MISSED",
+                    "event_type": event_types.CHECKPOINTS_MISSED,
                     "checkpoint_id": checkpoint_id,
                     "workflow_id": workflow_id,
                 },
@@ -117,11 +118,11 @@ def check_once(config=config, engine=None):
         if updated:
             logger.info(
                 f"Checkpoint check complete - {updated} status(es) updated",
-                extra={"event_type": "CHECKPOINTS_CHECK_COMPLETE"},
+                extra={"event_type": event_types.CHECKPOINTS_CHECK_COMPLETE},
             )
     except Exception:
         session.rollback()
-        logger.exception("Checkpoint check failed", extra={"event_type": "CHECKPOINTS_CHECK_FAILED"})
+        logger.exception("Checkpoint check failed", extra={"event_type": event_types.CHECKPOINTS_CHECK_FAILED})
     finally:
         session.close()
         if owns_engine:

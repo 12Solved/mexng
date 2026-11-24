@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
-import { getAlertRules, updateAlertRule, deleteAlertRule } from '../services/alertRuleServices';
+import { getAlertRules, updateAlertRule, deleteAlertRule, getAlertEventTypes } from '../services/alertRuleServices';
 import { getWorkflows } from '../services/workflowServices';
 import { getCheckpoints } from '../services/checkpointServices';
-import { getAllLogFilters } from '../services/logServices';
 import type { AlertRule } from '../types/alertRule';
 import type { Checkpoint } from '../types/checkpoint';
 import type { LogLevel } from '../types/log';
@@ -12,9 +11,6 @@ import { LEVEL_BADGE } from '../components/LogRow';
 import AlertRuleModal, { type CheckpointOption, type WorkflowOption } from '../components/AlertRuleModal';
 import { useReactTable, getCoreRowModel, type ColumnDef } from '@tanstack/react-table';
 import { useUser } from '../context/UserContext';
-
-// check_logs never alerts on its own events, so don't suggest them.
-const SELF_EVENT_PREFIX = 'CHECKLOGS_';
 
 // Rules only store IDs, and both lists are paginated, so walk every page.
 async function loadAll<T>(fetchPage: (p: number) => Promise<{ items: T[]; pages: number }>): Promise<T[]> {
@@ -90,8 +86,8 @@ const AlertRulesPage = () => {
     loadAll<Checkpoint>(getCheckpoints)
       .then(items => setCheckpoints(items.map(({ id, name, workflow_id }) => ({ id, name, workflow_id }))))
       .catch(() => toast.error('Failed to load checkpoints.'));
-    getAllLogFilters()
-      .then((types: string[]) => setEventTypes(types.filter(t => !t.startsWith(SELF_EVENT_PREFIX)).sort()))
+    getAlertEventTypes()
+      .then(setEventTypes)
       .catch(() => toast.error('Failed to load event types.'));
   }, []);
 

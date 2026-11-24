@@ -15,6 +15,7 @@ from mailextractor.app.poller.provider import get_provider
 from mailextractor.app.config import config
 from mailextractor.app.poller.email_inserter import insert_email
 from mailextractor.app.app_logging.setup_logging import setup_logging
+from mailextractor.app.app_logging import event_types
 
 def poll(config=config, engine=None):
     """Fetch new mail via the configured provider and insert it, advancing the checkpoint.
@@ -39,7 +40,7 @@ def poll(config=config, engine=None):
             if mail['date'] is None:
                 logger.error(
                     "Email missing date",
-                    extra={"event_type": "POLLER_POISON_PILL_EMAIL", "hash": mail.get('hash'), "message_id": mail.get('message_id')},
+                    extra={"event_type": event_types.POLLER_POISON_PILL_EMAIL, "hash": mail.get('hash'), "message_id": mail.get('message_id')},
                 )
                 raise ValueError(f"Email missing date (hash={mail.get('hash')!r}, message_id={mail.get('message_id')!r})")
             insert_email(session, mail)
@@ -52,13 +53,13 @@ def poll(config=config, engine=None):
         session.commit()
         if max_date:
             provider.update_checkpoint({'dt': max_date, 'hash': max_hash})
-        logger.info(f"Poll complete - {n_mail} new email(s) inserted.", extra={"event_type": "POLLER_POLL_COMPLETE", "inserted": n_mail})
+        logger.info(f"Poll complete - {n_mail} new email(s) inserted.", extra={"event_type": event_types.POLLER_POLL_COMPLETE, "inserted": n_mail})
     except Exception as e:
         session.rollback()
         logger.exception(
             "Failed to insert email, rolled back all",
             extra={
-                "event_type": "POLLER_EMAIL_INSERT_FAILED",
+                "event_type": event_types.POLLER_EMAIL_INSERT_FAILED,
                 'error': e,
                 'hash': mail.get('hash') if mail else None,
                 'message_id': mail.get('message_id') if mail else None,
@@ -96,12 +97,12 @@ class LoopFailureTracker:
                 self._logger.critical(
                     f"Scheduled poll has failed {self.consecutive_failures} times in a row — needs operator attention",
                     exc_info=True,
-                    extra={"event_type": "POLLER_SCHEDULED_POLL_FAILING_REPEATEDLY", "consecutive_failures": self.consecutive_failures},
+                    extra={"event_type": event_types.POLLER_SCHEDULED_POLL_FAILING_REPEATEDLY, "consecutive_failures": self.consecutive_failures},
                 )
             else:
                 self._logger.exception(
                     "Scheduled poll failed — will retry next interval",
-                    extra={"event_type": "POLLER_SCHEDULED_POLL_FAILED", "consecutive_failures": self.consecutive_failures},
+                    extra={"event_type": event_types.POLLER_SCHEDULED_POLL_FAILED, "consecutive_failures": self.consecutive_failures},
                 )
 
 def _run_loop(interval: int) -> None:
@@ -121,14 +122,14 @@ def _run_loop(interval: int) -> None:
     scheduler.add_job(job, "interval", seconds=interval, next_run_time=datetime.now())
 
     def shutdown(signum, frame):
-        logger.info("Shutting down poll scheduler", extra={"event_type": "POLLER_SCHEDULER_SHUTDOWN"})
+        logger.info("Shutting down poll scheduler", extra={"event_type": event_types.POLLER_SCHEDULER_SHUTDOWN})
         scheduler.shutdown(wait=False)
         engine.dispose()
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
 
-    logger.info(f"Poll scheduler started (interval: {interval}s)", extra={"event_type": "POLLER_SCHEDULER_STARTED"})
+    logger.info(f"Poll scheduler started (interval: {interval}s)", extra={"event_type": event_types.POLLER_SCHEDULER_STARTED})
     scheduler.start()
 
 def main():

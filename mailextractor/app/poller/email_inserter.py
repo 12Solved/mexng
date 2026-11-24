@@ -5,6 +5,7 @@ import os
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from mailextractor.models import Email, Attachment
+from mailextractor.app.app_logging import event_types
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,6 @@ def insert_email(session, email_data: dict) -> Email | None:
         ))
 
     logger.info(f"Inserted email: {email.subject!r} (message_id: {message_id})",
-                extra={"event_type": "POLLER_EMAIL_INSERTED", "message_id": message_id})
+                extra={"event_type": event_types.POLLER_EMAIL_INSERTED, "message_id": message_id})
     return email
 

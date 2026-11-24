@@ -4,6 +4,7 @@ from datetime import datetime
 from mailextractor.app.resolver import Resolver
 from mailextractor.app.steps.STEP_REGISTRY import STEP_REGISTRY
 from mailextractor.app.workflow_context import WorkflowContext
+from mailextractor.app.app_logging import event_types
 
 
 class Workflow:
@@ -22,7 +23,7 @@ class Workflow:
       logger.error(
           "Workflow missing 'steps'",
           extra={
-              "event_type": "WORKFLOW_INVALID_STRUCTURE",
+              "event_type": event_types.WORKFLOW_INVALID_STRUCTURE,
               "workflow_json": workflow_json
           }
       )
@@ -33,7 +34,7 @@ class Workflow:
         logger.error(
         f"Unknown step type: {step_type}",
         extra={
-          "event_type": "WORKFLOW_INVALID_STEP_TYPE",
+          "event_type": event_types.WORKFLOW_INVALID_STEP_TYPE,
           "step": step_type
         })
         raise Exception(f"Unknown step type: {step_type}")
@@ -63,7 +64,7 @@ class Workflow:
     logger.info(
     "Workflow started",
       extra={
-        "event_type": "WORKFLOW_STARTED",
+        "event_type": event_types.WORKFLOW_STARTED,
         "email_id": getattr(email, "id", None),
         "workflow_id": self.workflow_id,
         "run_id": self.run_id,
@@ -92,7 +93,7 @@ class Workflow:
       logger.exception(
         "Workflow failed internally",
         extra={
-          "event_type": "WORKFLOW_FAILED",
+          "event_type": event_types.WORKFLOW_FAILED,
           "email_id": getattr(email, "id", None),
           "workflow_id": self.workflow_id,
           "run_id": self.run_id,
@@ -103,7 +104,7 @@ class Workflow:
       logger.info(
         "Workflow finished",
         extra={
-          "event_type": "WORKFLOW_FINISHED",
+          "event_type": event_types.WORKFLOW_FINISHED,
           "email_id": getattr(email, "id", None),
           "workflow_id": self.workflow_id,
           "run_id": self.run_id,
@@ -119,7 +120,7 @@ class Workflow:
       if context.get("@stop"):
         logger.info(
         "Workflow stopped early",
-        extra={"event_type": "WORKFLOW_STOPPED",
+        extra={"event_type": event_types.WORKFLOW_STOPPED,
                "email_id": getattr(email, "id", None),
                "workflow_id": self.workflow_id,
                "run_id": self.run_id,})

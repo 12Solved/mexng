@@ -1,6 +1,7 @@
 import logging
 
 from mailextractor.app.steps.registry import register
+from mailextractor.app.app_logging import event_types
 
 
 class Step:
@@ -35,7 +36,7 @@ class Step:
     self.logger.debug(
       f"{self.step_name} started",
       extra={
-        "event_type": "STEP_STARTED",
+        "event_type": event_types.STEP_STARTED,
         "step": self.step_name,
         "email_id": email_id,
         "workflow_id": workflow_id,
@@ -49,7 +50,7 @@ class Step:
       self.logger.error(
         f"{self.step_name} crashed: {str(e)}",
         extra={
-          "event_type": "STEP_CRASHED",
+          "event_type": event_types.STEP_CRASHED,
           "step": self.step_name,
           "email_id": email_id,
           "workflow_id": workflow_id,
@@ -61,7 +62,7 @@ class Step:
     self.logger.debug(
       f"{self.step_name} finished",
       extra={
-        "event_type": "STEP_FINISHED",
+        "event_type": event_types.STEP_FINISHED,
         "step": self.step_name,
         "email_id": email_id,
         "workflow_id": workflow_id,

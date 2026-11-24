@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 import os
 
 from mailextractor.models import Email, Attachment
+from mailextractor.app.app_logging import event_types
 
 def _html_to_plain(html):
     soup = BeautifulSoup(html, "html.parser")
@@ -84,7 +85,7 @@ class BaseProvider(ABC):
             return  # no checkpoint configured — nothing to persist
         if isinstance(cp, datetime):
             self._checkpoint_path = checkpoint["dt"]
-            if self._logger: self._logger.info(f"Checkpoint updated in-memory (dt={checkpoint['dt']})", extra={"event_type": "POLLER_CHECKPOINT_UPDATED"})
+            if self._logger: self._logger.info(f"Checkpoint updated in-memory (dt={checkpoint['dt']})", extra={"event_type": event_types.POLLER_CHECKPOINT_UPDATED})
             return
         # Read BEFORE opening for write — open(cp, "w") truncates immediately,
         # so reading inside the dict literal below would see an empty file.
@@ -95,21 +96,21 @@ class BaseProvider(ABC):
                 "hash": checkpoint["hash"],
                 "skip_hashes": skip_hashes,
             }, f)
-        if self._logger: self._logger.info(f"Checkpoint written to {cp} (dt={checkpoint['dt']})", extra={"event_type": "POLLER_CHECKPOINT_UPDATED"})
+        if self._logger: self._logger.info(f"Checkpoint written to {cp} (dt={checkpoint['dt']})", extra={"event_type": event_types.POLLER_CHECKPOINT_UPDATED})
 
     def get_checkpoint(self) -> Checkpoint:
         cp = self._checkpoint_path
         if cp is None:
-            if self._logger: self._logger.info("No checkpoint configured — fetching everything", extra={"event_type": "POLLER_CHECKPOINT_LOADED"})
+            if self._logger: self._logger.info("No checkpoint configured — fetching everything", extra={"event_type": event_types.POLLER_CHECKPOINT_LOADED})
             return {"dt": None, "hash": None, "skip_hashes": []}
         if isinstance(cp, datetime):
-            if self._logger: self._logger.info(f"Using in-memory checkpoint {cp}", extra={"event_type": "POLLER_CHECKPOINT_LOADED"})
+            if self._logger: self._logger.info(f"Using in-memory checkpoint {cp}", extra={"event_type": event_types.POLLER_CHECKPOINT_LOADED})
             return {"dt": cp, "hash": None, "skip_hashes": []}
         try:
             with open(cp, "r") as f:
                 data = json.load(f)
                 dt_raw = data.get("dt")
-                if self._logger: self._logger.info(f"Checkpoint loaded from {cp} (dt={dt_raw})", extra={"event_type": "POLLER_CHECKPOINT_LOADED"})
+                if self._logger: self._logger.info(f"Checkpoint loaded from {cp} (dt={dt_raw})", extra={"event_type": event_types.POLLER_CHECKPOINT_LOADED})
                 return {
                     # Normalize on read too, in case an old checkpoint file still holds an aware string.
                     "dt": _to_naive_utc(datetime.fromisoformat(dt_raw)) if dt_raw else None,
@@ -117,7 +118,7 @@ class BaseProvider(ABC):
                     "skip_hashes": data.get("skip_hashes", []),
                 }
         except FileNotFoundError:
-            if self._logger: self._logger.warning(f"Checkpoint file not found, creating {cp}", extra={"event_type": "POLLER_CHECKPOINT_CREATED"})
+            if self._logger: self._logger.warning(f"Checkpoint file not found, creating {cp}", extra={"event_type": event_types.POLLER_CHECKPOINT_CREATED})
             with open(cp, "w") as f:
                 json.dump({"dt": None, "hash": None, "skip_hashes": []}, f)
             return {"dt": None, "hash": None, "skip_hashes": []}
@@ -190,13 +191,13 @@ class IMAPProvider(BaseProvider):
             if status != "OK":
                 raise Exception(f"Failed to select mailbox: {self._mailbox}")
             self._connection = connection
-            if self._logger: self._logger.info(f"IMAP connection established", extra={"event_type": "POLLER_IMAP_CONNECTION_ESTABLISHED"})
+            if self._logger: self._logger.info(f"IMAP connection established", extra={"event_type": event_types.POLLER_IMAP_CONNECTION_ESTABLISHED})
             return
         except imaplib.IMAP4.error as e:
-            if self._logger: self._logger.error("IMAP authentication failed", extra={"event_type": "POLLER_IMAP_AUTH_FAILED", "error": str(e)})
+            if self._logger: self._logger.error("IMAP authentication failed", extra={"event_type": event_types.POLLER_IMAP_AUTH_FAILED, "error": str(e)})
             raise
         except Exception as e:
-            if self._logger: self._logger.error("IMAP connection failed", extra={"event_type": "POLLER_IMAP_CONNECTION_FAILED", "error": str(e)})
+            if self._logger: self._logger.error("IMAP connection failed", extra={"event_type": event_types.POLLER_IMAP_CONNECTION_FAILED, "error": str(e)})
             raise
         return None
 
@@ -205,9 +206,9 @@ class IMAPProvider(BaseProvider):
             try:
                 self._connection.close()
                 self._connection.logout()
-                if self._logger: self._logger.info("IMAP connection closed", extra={"event_type": "POLLER_IMAP_CONNECTION_CLOSED"})
+                if self._logger: self._logger.info("IMAP connection closed", extra={"event_type": event_types.POLLER_IMAP_CONNECTION_CLOSED})
             except Exception as e:
-                if self._logger: self._logger.warning("IMAP connection close error", extra={"event_type": "POLLER_IMAP_CONNECTION_CLOSE_ERROR", "error": str(e)})
+                if self._logger: self._logger.warning("IMAP connection close error", extra={"event_type": event_types.POLLER_IMAP_CONNECTION_CLOSE_ERROR, "error": str(e)})
             finally:
                 self._connection = None
         return None
@@ -237,7 +238,7 @@ class IMAPProvider(BaseProvider):
                 try:
                     status, msg_data = self._connection.uid("fetch", uid_set, "(RFC822)")
                     if status != "OK":
-                        if self._logger: self._logger.warning(f"UID FETCH failed for batch {i}, attempt {attempt+1}/{max_retries}", extra={"event_type": "POLLER_IMAP_FETCH_BATCH_FAILED"})
+                        if self._logger: self._logger.warning(f"UID FETCH failed for batch {i}, attempt {attempt+1}/{max_retries}", extra={"event_type": event_types.POLLER_IMAP_FETCH_BATCH_FAILED})
                         msg_data = None
                         if attempt < max_retries - 1:
                             time.sleep(2 ** attempt)
@@ -245,7 +246,7 @@ class IMAPProvider(BaseProvider):
                         break  # Give up after max retries
                     break  # Fetch succeeded
                 except Exception:
-                    if self._logger: self._logger.exception(f"Error fetching batch {i}, attempt {attempt+1}/{max_retries}", extra={"event_type": "POLLER_IMAP_FETCH_BATCH_ERROR"})
+                    if self._logger: self._logger.exception(f"Error fetching batch {i}, attempt {attempt+1}/{max_retries}", extra={"event_type": event_types.POLLER_IMAP_FETCH_BATCH_ERROR})
                     msg_data = None
                     if attempt < max_retries - 1:
                         time.sleep(2 ** attempt)
@@ -275,7 +276,7 @@ class IMAPProvider(BaseProvider):
                     n_skip_listed += 1
                     if self._logger: self._logger.info(
                         f"Skipping skip-listed message (hash={uid_hash}, uid={item_uid})",
-                        extra={"event_type": "POLLER_SKIP_LISTED_EMAIL", "hash": uid_hash, "uid": item_uid}
+                        extra={"event_type": event_types.POLLER_SKIP_LISTED_EMAIL, "hash": uid_hash, "uid": item_uid}
                     )
                     continue
 
@@ -288,7 +289,7 @@ class IMAPProvider(BaseProvider):
                     n_skip_listed += 1
                     if self._logger: self._logger.info(
                         f"Skipping skip-listed email (hash={parsed['hash']})",
-                        extra={"event_type": "POLLER_SKIP_LISTED_EMAIL", "hash": parsed['hash'], "message_id": parsed.get('message_id')}
+                        extra={"event_type": event_types.POLLER_SKIP_LISTED_EMAIL, "hash": parsed['hash'], "message_id": parsed.get('message_id')}
                     )
                     continue
 
@@ -296,7 +297,7 @@ class IMAPProvider(BaseProvider):
                 n_emails = n_emails + 1
         if self._logger: self._logger.info(
             f"Fetched {n_emails} messages. Skipped {n_skipped}. Skip-listed {n_skip_listed}.",
-            extra={"event_type": "POLLER_IMAP_FETCH_COMPLETE", "count": n_emails, "skipped": n_skipped, "skip_listed": n_skip_listed}
+            extra={"event_type": event_types.POLLER_IMAP_FETCH_COMPLETE, "count": n_emails, "skipped": n_skipped, "skip_listed": n_skip_listed}
         )
 
     def _fetch_uids(self, dt: Optional[datetime] = None) -> list[int]:
@@ -317,20 +318,20 @@ class IMAPProvider(BaseProvider):
             try:
                 status, data = self._connection.uid("search", None, criteria)
                 if status != "OK":
-                    if self._logger: self._logger.warning(f"UID SEARCH failed with filter '{criteria}', attempt {attempt+1}/{max_retries}", extra={"event_type": "POLLER_IMAP_SEARCH_FAILED"})
+                    if self._logger: self._logger.warning(f"UID SEARCH failed with filter '{criteria}', attempt {attempt+1}/{max_retries}", extra={"event_type": event_types.POLLER_IMAP_SEARCH_FAILED})
                     if attempt < max_retries - 1:
                         time.sleep(2 ** attempt)
                         continue
                     break
                 uids = [int(u) for u in data[0].split()]
-                if self._logger: self._logger.info(f"Found {len(uids)} new UIDs (since {dt})", extra={"event_type": "POLLER_IMAP_UIDS_RETRIEVED", "count": len(uids)})
+                if self._logger: self._logger.info(f"Found {len(uids)} new UIDs (since {dt})", extra={"event_type": event_types.POLLER_IMAP_UIDS_RETRIEVED, "count": len(uids)})
                 return uids
             except Exception:
-                if self._logger: self._logger.exception(f"UID SEARCH failed with filter '{criteria}', attempt {attempt+1}/{max_retries}", extra={"event_type": "POLLER_IMAP_SEARCH_ERROR"})
+                if self._logger: self._logger.exception(f"UID SEARCH failed with filter '{criteria}', attempt {attempt+1}/{max_retries}", extra={"event_type": event_types.POLLER_IMAP_SEARCH_ERROR})
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)
 
-        if self._logger: self._logger.warning(f"UID SEARCH exhausted retries with filter '{criteria}' — treating as no new mail this cycle", extra={"event_type": "POLLER_IMAP_SEARCH_EXHAUSTED"})
+        if self._logger: self._logger.warning(f"UID SEARCH exhausted retries with filter '{criteria}' — treating as no new mail this cycle", extra={"event_type": event_types.POLLER_IMAP_SEARCH_EXHAUSTED})
         return []
 
     def _parse_message(self, response_line: bytes, raw_email: bytes) -> dict | None:
@@ -340,7 +341,7 @@ class IMAPProvider(BaseProvider):
 
             msg = message_from_bytes(raw_email)
 
-            date = self._parse_date_header(msg.get("Date"), "POLLER_IMAP_DATE_PARSE_FAILED")
+            date = self._parse_date_header(msg.get("Date"), event_types.POLLER_IMAP_DATE_PARSE_FAILED)
 
             attachments, html_body, plain_body = self._extract_message_parts(msg)
 
@@ -365,7 +366,7 @@ class IMAPProvider(BaseProvider):
                 "hash": hash
             }
         except Exception as e:
-            if self._logger: self._logger.exception("Error parsing IMAP message", extra={"event_type": "POLLER_IMAP_MESSAGE_PARSE_ERROR", "error": str(e)})
+            if self._logger: self._logger.exception("Error parsing IMAP message", extra={"event_type": event_types.POLLER_IMAP_MESSAGE_PARSE_ERROR, "error": str(e)})
             raise
 
     def _decode_header_value(self, value: str | None) -> str | None:
@@ -442,7 +443,7 @@ class GLOBProvider(BaseProvider):
                 email_paths.append(pattern)
 
         if not email_paths:
-            if self._logger: self._logger.warning(f"No email files found.", extra={"event_type": "POLLER_GLOB_NO_EMAIL"})
+            if self._logger: self._logger.warning(f"No email files found.", extra={"event_type": event_types.POLLER_GLOB_NO_EMAIL})
 
         success_count = 0
         skipped_count = 0
@@ -457,7 +458,7 @@ class GLOBProvider(BaseProvider):
                 skip_listed_count += 1
                 if self._logger: self._logger.info(
                     f"Skipping skip-listed file (hash={path_hash}, path={email_path})",
-                    extra={"event_type": "POLLER_SKIP_LISTED_EMAIL", "hash": path_hash, "path": email_path}
+                    extra={"event_type": event_types.POLLER_SKIP_LISTED_EMAIL, "hash": path_hash, "path": email_path}
                 )
                 continue
             try:
@@ -470,20 +471,20 @@ class GLOBProvider(BaseProvider):
                     skip_listed_count += 1
                     if self._logger: self._logger.info(
                         f"Skipping skip-listed email (hash={parsed['hash']})",
-                        extra={"event_type": "POLLER_SKIP_LISTED_EMAIL", "hash": parsed['hash'], "message_id": parsed.get('message_id')}
+                        extra={"event_type": event_types.POLLER_SKIP_LISTED_EMAIL, "hash": parsed['hash'], "message_id": parsed.get('message_id')}
                     )
                     continue
                 yield parsed
                 success_count += 1
             except Exception as e:
                 if self._logger: self._logger.exception(
-                    e, extra={"event_type": "POLLER_GLOB_ERROR", "path": email_path, "path_hash": path_hash}
+                    e, extra={"event_type": event_types.POLLER_GLOB_ERROR, "path": email_path, "path_hash": path_hash}
                 )
                 failure_count += 1
                 raise
         if self._logger: self._logger.info(
             f"Fetched {success_count} messages. Skipped {skipped_count}. Skip-listed {skip_listed_count}. Failed {failure_count}",
-            extra={"event_type": "POLLER_GLOB_FETCH_COMPLETE", "count": success_count}
+            extra={"event_type": event_types.POLLER_GLOB_FETCH_COMPLETE, "count": success_count}
         )
 
     def _parse_message(self, email_path) -> dict | None:
@@ -528,7 +529,7 @@ class GLOBProvider(BaseProvider):
         sender = msg.get('From')
         recipient = msg.get('To')
 
-        date = self._parse_date_header(msg.get('Date'), "POLLER_GLOB_DATE_PARSE_FAILED")
+        date = self._parse_date_header(msg.get('Date'), event_types.POLLER_GLOB_DATE_PARSE_FAILED)
 
         hash = self._compute_hash(subject, sender, recipient, date)
 
@@ -552,7 +553,7 @@ def get_provider(config, logger: Optional[Logger] = None, checkpoint_path: Optio
     """Build the provider selected by config.EMAIL_PROVIDER (imap or glob)."""
     provider_type = config.EMAIL_PROVIDER.lower()
     if provider_type == "gmail":
-        if logger: logger.error("gmail provider no longer supported", extra={"event_type": "POLLER_NOT_SUPPORTED_PROVIDER"})
+        if logger: logger.error("gmail provider no longer supported", extra={"event_type": event_types.POLLER_NOT_SUPPORTED_PROVIDER})
         raise ValueError("gmail provider no longer supported")
     elif provider_type == "imap":
         if not config.IMAP_USERNAME or not config.IMAP_PASSWORD:
@@ -567,17 +568,17 @@ def get_provider(config, logger: Optional[Logger] = None, checkpoint_path: Optio
             logger = logger,
             checkpoint_path = checkpoint_path
         )
-        if logger: logger.info(f"Using IMAP provider ({config.IMAP_HOST})", extra={"event_type": "POLLER_PROVIDER_SELECTED"})
+        if logger: logger.info(f"Using IMAP provider ({config.IMAP_HOST})", extra={"event_type": event_types.POLLER_PROVIDER_SELECTED})
     elif provider_type == "glob":
         if not config.GLOB_PATTERNS:
             raise ValueError("GLOB_PATTERNS must be set for GLOB provider")
         if checkpoint_path:
-            if logger: logger.info(f"Checkpoint file not supported for GLOB - polling everything!", extra={"event_type": "POLLER_GLOB_CHECKPOINT"})
+            if logger: logger.info(f"Checkpoint file not supported for GLOB - polling everything!", extra={"event_type": event_types.POLLER_GLOB_CHECKPOINT})
         provider = GLOBProvider(
             patterns=[p.strip() for p in config.GLOB_PATTERNS.split(",") if p.strip()],
             logger = logger
         )
-        if logger: logger.info(f"Using GLOB provider", extra={"event_type": "POLLER_PROVIDER_SELECTED"})
+        if logger: logger.info(f"Using GLOB provider", extra={"event_type": event_types.POLLER_PROVIDER_SELECTED})
     else:
         raise ValueError(f"Unknown EMAIL_PROVIDER: {provider_type}. Use 'imap' or 'glob'")
     return provider

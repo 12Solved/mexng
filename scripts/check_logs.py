@@ -24,16 +24,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from mailextractor import models
 from mailextractor.app.app_logging.setup_logging import setup_logging
 from mailextractor.app.config import config
+from mailextractor.app.app_logging import event_types
 from scripts.alert_email import format_digest
 from scripts.notify import notify
 
 # Log ids are assigned at insert but become visible at commit, so a row
 # younger than this may still have an uncommitted lower-id sibling.
 SAFETY_MARGIN_SECONDS = 10
-
-# The checker's own events are never queued, so a failing scan can't
-# alert about itself in a loop.
-SELF_EVENT_PREFIX = "CHECKLOGS_"
 
 # Minutes to keep collecting alerts after a user's first unsent one before the digest goes out.
 COLLECTION_WINDOW_MINUTES = int(os.getenv("ALERT_COLLECTION_WINDOW_MINUTES", "10"))
@@ -78,7 +75,7 @@ def _queue_matches(session, after_id: int, up_to_id: int) -> int:
         .where(
             Log.id > after_id,
             Log.id <= up_to_id,
-            ~Log.event_type.startswith(SELF_EVENT_PREFIX, autoescape=True),
+            ~Log.event_type.startswith(event_types.SELF_EVENT_PREFIX, autoescape=True),
         )
         .distinct()
     )
@@ -131,14 +128,14 @@ def _send_digests(session, window: timedelta, public_url: str) -> tuple[int, int
             failed += 1
             logger.exception(
                 f"Formatting alert digest for user {user.id} failed, will retry",
-                extra={"event_type": "CHECKLOGS_DIGEST_FORMAT_FAILED"},
+                extra={"event_type": event_types.CHECKLOGS_DIGEST_FORMAT_FAILED},
             )
             continue
         if not notify(subject, body, recipients=[user.email], meta={"user_id": user.id}, html=html_body):
             failed += 1
             logger.warning(
                 f"Alert digest for user {user.id} failed, will retry",
-                extra={"event_type": "CHECKLOGS_DIGEST_FAILED"},
+                extra={"event_type": event_types.CHECKLOGS_DIGEST_FAILED},
             )
             continue
         # Mark only the rows that went out; rows queued meanwhile wait for the next digest.
@@ -188,11 +185,11 @@ def check_once(
         logger.info(
             f"Log scan complete - {len(scanned)} row(s) scanned, {queued} queued, "
             f"{sent} digest(s) sent, {failed} failed",
-            extra={"event_type": "CHECKLOGS_COMPLETE"},
+            extra={"event_type": event_types.CHECKLOGS_COMPLETE},
         )
     except Exception:
         session.rollback()
-        logger.exception("Log check failed", extra={"event_type": "CHECKLOGS_FAILED"})
+        logger.exception("Log check failed", extra={"event_type": event_types.CHECKLOGS_FAILED})
     finally:
         session.close()
         if owns_engine:

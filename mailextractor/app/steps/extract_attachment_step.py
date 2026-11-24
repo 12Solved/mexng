@@ -1,3 +1,4 @@
+from mailextractor.app.app_logging import event_types
 from .base_step import Step
 
 
@@ -20,7 +21,7 @@ class ExtractAttachmentsStep(Step):
     self.logger.info(
       f"Attachments extracted for {getattr(email, 'subject', None)}",
       extra={
-          "event_type": "STEP_ATTACHMENTS_EXTRACTED",
+          "event_type": event_types.STEP_ATTACHMENTS_EXTRACTED,
           "step": self.step_name,
           "email_id": getattr(email, "id", None),
           "workflow_id": context.get("workflow_id"),

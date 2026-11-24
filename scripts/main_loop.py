@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from mailextractor.app.app_logging.setup_logging import setup_logging
 from mailextractor.app.config import config
+from mailextractor.app.app_logging import event_types
 from mailextractor.app.poller.poller import poll
 from mailextractor.app.processor.processor import process
 from scripts.check_checkpoints import check_once
@@ -38,13 +39,13 @@ def main():
     scheduler.add_job(cycle, "interval", seconds=args.interval, max_instances=1, coalesce=True, next_run_time=datetime.now(), kwargs={"engine": engine})
 
     def shutdown(signum, frame):
-        logger.info("Shutting down main loop", extra={"event_type": "MAINLOOP_SHUTDOWN"})
+        logger.info("Shutting down main loop", extra={"event_type": event_types.MAINLOOP_SHUTDOWN})
         scheduler.shutdown(wait=True)
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
     
-    logger.info(f"Main loop started (interval: {args.interval}s)", extra={"event_type": "MAINLOOP_STARTED"})
+    logger.info(f"Main loop started (interval: {args.interval}s)", extra={"event_type": event_types.MAINLOOP_STARTED})
 
     scheduler.start()
     

@@ -3,6 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from mailextractor import models
+from mailextractor.app.app_logging import event_types
+from mailextractor.backend.services import log_service
 from mailextractor.backend.utils.alert_rule_targets import PATTERN_FIELDS, TARGET_PAIRS, check_targets
 from mailextractor.backend.utils.regex import check_pg_regex
 
@@ -23,6 +25,14 @@ def _check_patterns(db: Session, fields: dict):
                 check_pg_regex(db, pattern)
             except ValueError as e:
                 raise ValueError(f"{e} ({pattern_field})") from e
+
+
+def get_event_type_options(db: Session) -> list[str]:
+    seen = log_service.get_log_filters(db)
+    return sorted(
+        t for t in {*event_types.ALERTABLE_EVENT_TYPES, *seen}
+        if not t.startswith(event_types.SELF_EVENT_PREFIX)
+    )
 
 
 def get_alert_rules(db: Session, user_id: int):

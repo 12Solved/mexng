@@ -2,6 +2,7 @@ import fnmatch
 import json
 
 import mailextractor.app.steputils as stp
+from mailextractor.app.app_logging import event_types
 
 from .base_step import Step
 
@@ -68,7 +69,7 @@ class AttachmentPatternMapStep(Step):
         self.logger.info(
         f"Attachment {filename} MATCHES PATTERN '{pattern}' WITH NO TARGET - SKIPPING",
         extra={
-            "event_type": "STEP_ATTACHMENT_PATTERN_SKIPPED",
+            "event_type": event_types.STEP_ATTACHMENT_PATTERN_SKIPPED,
             "step": self.step_name,
             "email_id": getattr(context.get("email"), "id", None),
             "workflow_id": context.get("workflow_id"),
@@ -79,7 +80,7 @@ class AttachmentPatternMapStep(Step):
       self.logger.info(
       f"Attachment {filename} MATCHES PATTERN '{pattern}'",
       extra={
-          "event_type": "STEP_NEEDED_ATTACHMENT_FOUND",
+          "event_type": event_types.STEP_NEEDED_ATTACHMENT_FOUND,
           "step": self.step_name,
           "email_id": getattr(context.get("email"), "id", None),
           "workflow_id": context.get("workflow_id"),
@@ -91,7 +92,7 @@ class AttachmentPatternMapStep(Step):
       self.logger.info(
       f"Attachment {filename} DOES NOT MATCH ANY PATTERN",
       extra={
-          "event_type": "STEP_NEEDED_ATTACHMENT_NOT_FOUND",
+          "event_type": event_types.STEP_NEEDED_ATTACHMENT_NOT_FOUND,
           "step": self.step_name,
           "email_id": getattr(context.get("email"), "id", None),
           "workflow_id": context.get("workflow_id"),

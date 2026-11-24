@@ -2,6 +2,7 @@ import os
 
 from sqlalchemy.orm import object_session
 import mailextractor.app.steputils as stp
+from mailextractor.app.app_logging import event_types
 
 from .base_step import Step
 
@@ -45,7 +46,7 @@ class SaveAttachmentStep(Step):
             self.logger.error(
                 "Attachment missing in context",
                 extra={
-                    "event_type": "STEP_ATTACHMENT_MISSING",
+                    "event_type": event_types.STEP_ATTACHMENT_MISSING,
                     "step": self.step_name,
                     "email_id": getattr(email, "id", None),
                     "workflow_id": context.get("workflow_id"),
@@ -86,7 +87,7 @@ class SaveAttachmentStep(Step):
             self.logger.error(
                 f"Refusing to save outside allowed path: {str(e)}",
                 extra={
-                    "event_type": "STEP_PATH_JAIL_VIOLATION",
+                    "event_type": event_types.STEP_PATH_JAIL_VIOLATION,
                     "step": self.step_name,
                     "attachment_id": getattr(attachment, "id", None),
                     "email_id": getattr(email, "id", None),
@@ -100,7 +101,7 @@ class SaveAttachmentStep(Step):
             self.logger.info(
                 f"Dry-run: would save attachment to {validated_path}",
                 extra={
-                    "event_type": "STEP_DRY_RUN_FILE_SAVE",
+                    "event_type": event_types.STEP_DRY_RUN_FILE_SAVE,
                     "step": self.step_name,
                     "attachment_id": getattr(attachment, "id", None),
                     "email_id": getattr(email, "id", None),
@@ -121,7 +122,7 @@ class SaveAttachmentStep(Step):
             self.logger.error(
                 f"Permission denied when saving file to {resolved_destination}",
                 extra={
-                    "event_type": "STEP_FILE_PERMISSION_DENIED",
+                    "event_type": event_types.STEP_FILE_PERMISSION_DENIED,
                     "step": self.step_name,
                     "attachment_id": getattr(attachment, "id", None),
                     "email_id": getattr(email, "id", None),
@@ -135,7 +136,7 @@ class SaveAttachmentStep(Step):
             self.logger.error(
                 f"Failed to save attachment: {str(e)}",
                 extra={
-                    "event_type": "STEP_ATTACHMENT_SAVE_FAILED",
+                    "event_type": event_types.STEP_ATTACHMENT_SAVE_FAILED,
                     "step": self.step_name,
                     "attachment_id": getattr(attachment, "id", None),
                     "email_id": getattr(email, "id", None),
@@ -156,7 +157,7 @@ class SaveAttachmentStep(Step):
             self.logger.info(
                 f"Attachment saved to: {new_path}",
                 extra={
-                    "event_type": "STEP_FILE_SAVED_TO_PATH",
+                    "event_type": event_types.STEP_FILE_SAVED_TO_PATH,
                     "step": self.step_name,
                     "attachment_id": getattr(attachment, "id", None),
                     "email_id": getattr(email, "id", None),
@@ -169,7 +170,7 @@ class SaveAttachmentStep(Step):
             self.logger.error(
                 f"Failed to update attachment in DB: {str(e)}",
                 extra={
-                    "event_type": "STEP_DB_UPDATE_FAILED",
+                    "event_type": event_types.STEP_DB_UPDATE_FAILED,
                     "step": self.step_name,
                     "attachment_id": getattr(attachment, "id", None),
                     "email_id": getattr(email, "id", None),

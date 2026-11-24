@@ -1,5 +1,6 @@
 import re
 
+from mailextractor.app.app_logging import event_types
 from .base_step import Step
 
 
@@ -37,7 +38,7 @@ class MatchMessageIdStep(Step):
     self.logger.info(
     "Message-ID matches",
     extra={
-        "event_type": "STEP_MESSAGE_ID_MATCHED",
+        "event_type": event_types.STEP_MESSAGE_ID_MATCHED,
         "step": self.step_name,
         "email_id": getattr(email, "id", None),
         "workflow_id": context.get("workflow_id"),

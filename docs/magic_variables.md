@@ -39,7 +39,7 @@ The `runs` table is never touched. Logs are still written.
 
 Every log's `event_type` starts with a prefix naming the component that emitted it, e.g. `POLLER_IMAP_AUTH_FAILED`. The prefix is a single word (no inner `_`), so it is always the text before the first `_`, and sorting event types alphabetically groups them by component.
 
-Event types are plain inline strings (`extra={"event_type": "..."}`), not an enum. When adding a new one, use the prefix of the module it's logged from.
+Event types are plain string constants in `mailextractor/app/app_logging/event_types.py`, not an enum; log calls reference them (`extra={"event_type": event_types.POLLER_IMAP_AUTH_FAILED}`) instead of inline strings. When adding a new one, define it there with the prefix of the module it's logged from. To offer it in the alert rule editor before it has ever been logged, also add it to `ALERTABLE_EVENT_TYPES`.
 
 | Prefix | Emitted by |
 |---|---|

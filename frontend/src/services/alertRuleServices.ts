@@ -6,6 +6,12 @@ export async function getAlertRules(page = 1): Promise<AlertRuleResponseBody> {
   return res.data;
 }
 
+// Sorted, and without check_logs' own events (rules on those never fire).
+export async function getAlertEventTypes(): Promise<string[]> {
+  const res = await api.get('/alert-rules/event-types');
+  return res.data;
+}
+
 export async function createAlertRule(body: AlertRuleBody): Promise<AlertRule> {
   const res = await api.post('/alert-rules/', body);
   return res.data;

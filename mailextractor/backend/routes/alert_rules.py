@@ -31,6 +31,11 @@ def list_alert_rules(db: Session = Depends(get_db), user: User = Depends(current
     return alert_rule_service.get_alert_rules(db, user.id)
 
 
+@router.get("/event-types", response_model=list[str])
+def list_event_types(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return alert_rule_service.get_event_type_options(db)
+
+
 @router.post("/", response_model=schemas.AlertRuleSchema)
 def create_alert_rule(body: schemas.AlertRuleBody, db: Session = Depends(get_db), user: User = Depends(current_user)):
     fields = body.model_dump()
