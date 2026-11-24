@@ -22,12 +22,16 @@ const stringOperators = [
 const dateOperators = defaultOperators.filter(op =>
   ['=', '<', '>', '<=', '>='].includes(op.name)
 );
+const numberOperators = defaultOperators.filter(op =>
+  ['=', '!=', '<', '>', '<=', '>='].includes(op.name)
+);
 const fields = [
   { name: 'subject',   label: 'Subject',   operators: stringOperators },
   { name: 'sender',    label: 'Sender',    operators: stringOperators },
   { name: 'recipient', label: 'Recipient', operators: stringOperators },
   { name: 'body',      label: 'Body',      operators: stringOperators },
   { name: 'date',      label: 'Date',      inputType: 'date', operators: dateOperators },
+  { name: 'id',        label: 'ID',        inputType: 'number', operators: numberOperators },
 ];
 
 const QB_CONTROL =
