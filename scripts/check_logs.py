@@ -6,21 +6,15 @@ log, however many of that user's rules match).
 Progress is tracked by the single-row `alert_scan_state` cursor (id of the
 last log row scanned), so a restart doesn't replay the whole history.
 
-Runs as a standalone process with APScheduler.
-
 Usage:
     python check_logs.py
-    python check_logs.py --interval 300
 """
-import argparse
 import logging
 import os
-import signal
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 from itertools import groupby, takewhile
 
-from apscheduler.schedulers.blocking import BlockingScheduler
 from sqlalchemy import and_, create_engine, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import sessionmaker
@@ -130,7 +124,16 @@ def _send_digests(session, window: timedelta, public_url: str) -> tuple[int, int
     sent = failed = 0
     for user, group in groupby(rows, key=lambda row: row.User):
         group = list(group)
-        subject, body, html_body = format_digest(group, public_url)
+        # One user's bad data must not block digests for the users after them.
+        try:
+            subject, body, html_body = format_digest(group, public_url)
+        except Exception:
+            failed += 1
+            logger.exception(
+                f"Formatting alert digest for user {user.id} failed, will retry",
+                extra={"event_type": "CHECKLOGS_DIGEST_FORMAT_FAILED"},
+            )
+            continue
         if not notify(subject, body, recipients=[user.email], meta={"user_id": user.id}, html=html_body):
             failed += 1
             logger.warning(
@@ -196,38 +199,6 @@ def check_once(
             engine.dispose()
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--interval", type=int, default=300, help="Seconds between checks (default: 300)")
-    args = parser.parse_args()
-
-    logging.getLogger("apscheduler").propagate = False
-
-    engine = create_engine(config.DATABASE_URL, pool_pre_ping=True)
-    setup_logging(engine)
-
-    scheduler = BlockingScheduler()
-    scheduler.add_job(
-        check_once,
-        "interval",
-        seconds=args.interval,
-        next_run_time=datetime.now(),
-        kwargs={"engine": engine},
-    )
-
-    def shutdown(signum, frame):
-        logger.info("Shutting down log scheduler", extra={"event_type": "CHECKLOGS_SCHEDULER_SHUTDOWN"})
-        scheduler.shutdown(wait=False)
-
-    signal.signal(signal.SIGTERM, shutdown)
-    signal.signal(signal.SIGINT, shutdown)
-
-    logger.info(
-        f"Log scheduler started (interval: {args.interval}s)",
-        extra={"event_type": "CHECKLOGS_SCHEDULER_STARTED"},
-    )
-    scheduler.start()
-
-
 if __name__ == "__main__":
-    main()
+    setup_logging(create_engine(config.DATABASE_URL))
+    check_once()
