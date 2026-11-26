@@ -24,6 +24,7 @@ export interface RecentError {
   created_at: string | null
   email_id: number | null
   workflow_id: number | null
+  run_id: number | null
 }
 
 export interface RecentRun {

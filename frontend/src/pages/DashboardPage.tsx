@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { streamStats } from '../services/dashboardServices.ts'
-import type { RecentRun, Stats, StatsPeriodPreset } from '../types/stats.ts'
+import type { RecentError, RecentRun, Stats, StatsPeriodPreset } from '../types/stats.ts'
 import { RUN_STATE_BADGE } from '../lib/runState.ts'
 import type { RunState } from '../types/workflowRun.ts'
 import {
@@ -418,20 +418,30 @@ function RecentRunRow({ run, now, flash }: RecentRunRowProps) {
           {timeAgo(run.created_at, now)}
         </span>
       </Link>
-      <span className="shrink-0 flex items-center">
-        {run.email_id != null ? (
-          <Link to={`/email/${run.email_id}`} className={ROW_ICON_LINK} title="Open email" aria-label="Open email">
-            <EnvelopeIcon className="h-4 w-4" />
-          </Link>
-        ) : (
-          // Keeps the workflow icon aligned across rows when the email was deleted.
-          <span className="w-6" />
-        )}
-        <Link to={`/workflow/${run.workflow_id}`} className={ROW_ICON_LINK} title="Open workflow" aria-label="Open workflow">
+      <RowIconLinks emailId={run.email_id} workflowId={run.workflow_id} />
+    </li>
+  )
+}
+
+// Email + workflow shortcuts at the end of a row; a missing one leaves a gap so icons stay aligned across rows.
+function RowIconLinks({ emailId, workflowId }: { emailId: number | null; workflowId: number | null }) {
+  return (
+    <span className="shrink-0 flex items-center">
+      {emailId != null ? (
+        <Link to={`/email/${emailId}`} className={ROW_ICON_LINK} title="Open email" aria-label="Open email">
+          <EnvelopeIcon className="h-4 w-4" />
+        </Link>
+      ) : (
+        <span className="w-6" />
+      )}
+      {workflowId != null ? (
+        <Link to={`/workflow/${workflowId}`} className={ROW_ICON_LINK} title="Open workflow" aria-label="Open workflow">
           <WorkflowIcon size={16} />
         </Link>
-      </span>
-    </li>
+      ) : (
+        <span className="w-6" />
+      )}
+    </span>
   )
 }
 
@@ -444,17 +454,29 @@ function InfoRow({ label, value }: { label: string; value: ReactNode | number })
   )
 }
 
-function ErrorRow({ err }: { err: Stats['recent_errors'][number] }) {
+// Most specific logs view available: the error's run, else its email, else every log with its event type.
+function errorLogsPath(err: RecentError): string {
+  if (err.run_id != null) return `/logs?run_id=${err.run_id}`
+  if (err.email_id != null) return `/logs?email_id=${err.email_id}`
+  return `/logs?${new URLSearchParams({ q: `event:${err.event_type}` })}`
+}
+
+function ErrorRow({ err }: { err: RecentError }) {
   return (
-    <li className="flex items-start gap-3 rounded-lg bg-slate-100 dark:bg-slate-800/60 p-3 text-sm border border-slate-300 dark:border-slate-700/50">
-      <div className="flex-1 min-w-0">
+    <li className="flex items-start gap-3 rounded-lg bg-slate-100 dark:bg-slate-800/60 p-3 text-sm border border-slate-300 dark:border-slate-700/50 hover:bg-slate-200/70 dark:hover:bg-slate-800">
+      <Link
+        to={errorLogsPath(err)}
+        className="flex-1 min-w-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+        title="View related logs"
+      >
         <p className="text-[var(--foreground)] truncate">{err.message ?? '—'}</p>
         <p className="text-[var(--muted-foreground)] text-xs mt-1">
           {err.step && <span className="font-mono mr-2">{err.step}</span>}
           {err.event_type && <span className="font-mono mr-2 text-red-400">{err.event_type}</span>}
           {err.created_at && new Date(err.created_at).toLocaleString()}
         </p>
-      </div>
+      </Link>
+      <RowIconLinks emailId={err.email_id} workflowId={err.workflow_id} />
     </li>
   )
 }

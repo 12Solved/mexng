@@ -240,6 +240,7 @@ def get_stats(db: Session, period: str | None = None, runs_state: str | None = N
                 "created_at": _iso_utc(e.created_at),
                 "email_id": e.email_id,
                 "workflow_id": e.workflow_id,
+                "run_id": e.run_id,
             }
             for e in recent_errors
         ],
