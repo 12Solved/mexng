@@ -9,6 +9,7 @@ import { LogRow, LOG_LEVELS, LEVEL_BADGE, mergeLogsSearchQuery } from './LogRow'
 import type { Email } from '../types/email'
 import type { WorkflowJson } from '../types/workflowEditor'
 import type { RunState } from '../types/workflowRun'
+import { RUN_STATE_BADGE } from '../lib/runState'
 import type { Log, LogLevel } from '../types/log'
 
 interface TestRunModalProps {
@@ -16,14 +17,6 @@ interface TestRunModalProps {
   workflowId?: number
   workflowName: string
   onClose: () => void
-}
-
-const STATE_BADGE: Record<RunState, string> = {
-  success: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  failed: 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400',
-  skipped: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
-  re_run: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-  running: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
 }
 
 function TestRunModal({ workflowJson, workflowId, workflowName, onClose }: TestRunModalProps) {
@@ -167,7 +160,7 @@ function TestRunModal({ workflowJson, workflowId, workflowName, onClose }: TestR
             <div className="flex flex-col gap-3 py-4">
               <div className="flex flex-col items-center text-center gap-3">
                 {result.runId == null && (
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATE_BADGE[result.state]}`}>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${RUN_STATE_BADGE[result.state]}`}>
                     {result.state}
                   </span>
                 )}
@@ -248,7 +241,7 @@ function TestRunModal({ workflowJson, workflowId, workflowName, onClose }: TestR
                         clear
                       </button>
                     )}
-                    <span className={`ml-auto text-xs font-medium px-2.5 py-1 rounded-full ${STATE_BADGE[result.state]}`}>
+                    <span className={`ml-auto text-xs font-medium px-2.5 py-1 rounded-full ${RUN_STATE_BADGE[result.state]}`}>
                       run #{result.runId} · {result.state}
                     </span>
                   </div>
