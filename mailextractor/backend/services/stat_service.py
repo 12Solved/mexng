@@ -7,6 +7,7 @@ from sqlalchemy import func, or_, cast, Boolean
 from mailextractor.models import Email, WorkflowRun, WorkflowModel, Checkpoint, Log, RunState, LogLevel
 
 VALID_PRESETS = frozenset({"last_24h", "last_7d", "last_28d", "all"})
+RECENT_RUNS_LIMIT = 20
 
 
 def normalize_period(period: str | None) -> str:
@@ -18,6 +19,11 @@ def normalize_period(period: str | None) -> str:
 
 def _utc_now_naive() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _iso_utc(dt: datetime | None) -> str | None:
+    """Serialize a naive-UTC timestamp with a "Z" so browsers don't read it as local time."""
+    return dt.isoformat() + "Z" if dt else None
 
 
 def period_window(preset: str) -> tuple[datetime | None, datetime | None, datetime | None]:
@@ -119,9 +125,48 @@ def _running_count_latest(db: Session) -> int:
     ).filter(WorkflowRun.state == RunState.running).scalar() or 0
 
 
-def get_stats(db: Session, period: str | None = None) -> dict[str, Any]:
+def normalize_run_state(state: str | None) -> RunState | None:
+    """Unknown or empty values mean no filter, like an unknown period means "all"."""
+    try:
+        return RunState(state.strip().lower()) if state else None
+    except ValueError:
+        return None
+
+
+def _recent_runs(db: Session, state: RunState | None) -> list[dict[str, Any]]:
+    """Newest non-dry runs, optionally in one state, regardless of the selected period."""
+    query = (
+        db.query(WorkflowRun, WorkflowModel.name, Email.subject)
+        .join(WorkflowModel, WorkflowRun.workflow_id == WorkflowModel.id)
+        .outerjoin(Email, WorkflowRun.email_id == Email.id)
+        .filter(~WorkflowRun.run_options.contains({"@dry_run": True}))
+    )
+    if state is not None:
+        query = query.filter(WorkflowRun.state == state)
+    rows = (
+        query
+        .order_by(WorkflowRun.id.desc())
+        .limit(RECENT_RUNS_LIMIT)
+        .all()
+    )
+    return [
+        {
+            "id": run.id,
+            "state": run.state.value,
+            "workflow_id": run.workflow_id,
+            "workflow_name": workflow_name,
+            "email_id": run.email_id,
+            "email_subject": email_subject,
+            "created_at": _iso_utc(run.created_at),
+        }
+        for run, workflow_name, email_subject in rows
+    ]
+
+
+def get_stats(db: Session, period: str | None = None, runs_state: str | None = None) -> dict[str, Any]:
     preset = normalize_period(period)
     start, end_excl, display_end = period_window(preset)
+    recent_state = normalize_run_state(runs_state)
 
     total_emails = db.query(func.count(Email.id)).scalar() or 0
     emails_in_period = total_emails if preset == "all" else _email_count_in_range(db, start, end_excl)
@@ -166,11 +211,8 @@ def get_stats(db: Session, period: str | None = None) -> dict[str, Any]:
 
     recent_errors = err_q.order_by(Log.created_at.desc()).limit(10).all()
 
-    starts_at_iso = start.isoformat() + "Z" if start else None
-    if end_excl is not None:
-        ends_at_iso = end_excl.isoformat() + "Z"
-    else:
-        ends_at_iso = display_end.isoformat() + "Z" if display_end else None
+    starts_at_iso = _iso_utc(start)
+    ends_at_iso = _iso_utc(end_excl if end_excl is not None else display_end)
 
     return {
         "period": {
@@ -186,13 +228,16 @@ def get_stats(db: Session, period: str | None = None) -> dict[str, Any]:
             "missed": checkpoint_counts.get("missed", 0),
             "never_seen": checkpoint_counts.get("never_seen", 0),
         },
+        # Echoed back so the client can tell whether recent_runs matches its selected filter yet.
+        "recent_runs_state": recent_state.value if recent_state else None,
+        "recent_runs": _recent_runs(db, recent_state),
         "recent_errors": [
             {
                 "id": e.id,
                 "message": e.message,
                 "step": e.step,
                 "event_type": e.event_type,
-                "created_at": e.created_at.isoformat() if e.created_at else None,
+                "created_at": _iso_utc(e.created_at),
                 "email_id": e.email_id,
                 "workflow_id": e.workflow_id,
             }

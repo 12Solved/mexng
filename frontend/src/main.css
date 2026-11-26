@@ -21,8 +21,11 @@ body {
   background-color: var(--background);
 }
 
-*, *::before, *::after {
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+/* In the base layer so Tailwind's transition-* utilities can override it per element. */
+@layer base {
+  *, *::before, *::after {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+  }
 }
 
 :root {
@@ -54,6 +57,14 @@ body {
   --destructive:        oklch(0.637 0.237 25.331);    /* red-500   */
 }
 
+/* Dashboard: brief highlight for a run row that just appeared or changed state */
+@keyframes run-flash {
+  from { background-color: color-mix(in srgb, var(--primary) 14%, transparent); }
+  to   { background-color: transparent; }
+}
+.run-flash {
+  animation: run-flash 2.5s ease-out;
+}
 .dark .queryBuilder-branches .ruleGroup {
   --rqb-background-color: oklch(0.279 0.041 260.031 / 0.45);
   --rqb-border-color: oklch(0.446 0.043 257.281);

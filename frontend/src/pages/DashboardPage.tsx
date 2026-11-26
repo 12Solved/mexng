@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { streamStats } from '../services/dashboardServices.ts'
-import type { Stats, StatsPeriodPreset } from '../types/stats.ts'
+import type { RecentRun, Stats, StatsPeriodPreset } from '../types/stats.ts'
+import { RUN_STATE_BADGE } from '../lib/runState.ts'
+import type { RunState } from '../types/workflowRun.ts'
 import {
   EnvelopeIcon,
   CheckCircleIcon,
   XCircleIcon,
-  ArrowPathIcon,
+  ChevronDownIcon,
 } from '@heroicons/react/24/outline'
+import { WorkflowIcon } from '../assets/icons'
 
 const PERIOD_TABS: { id: StatsPeriodPreset; label: string }[] = [
   { id: 'last_24h', label: 'Last 24H' },
@@ -32,39 +35,88 @@ function formatPeriodRange(meta: Stats['period']): string {
   }
 }
 
+interface Snapshot {
+  stats: Stats
+  // Time the message arrived; "x ago" labels are computed against it.
+  receivedAt: number
+  // Keys of rows that are new or changed state since the previous message, so only they flash.
+  // Empty on the first message and right after a filter switch: those rows are only newly listed.
+  newRunKeys: Set<string>
+}
+
+// State is part of the key so a state change counts as new and replays the highlight.
+const runKey = (run: RecentRun) => `${run.id}-${run.state}`
+
+// Rows shown before "Show more"; the backend sends more than this.
+const RECENT_RUNS_COLLAPSED = 5
+
+const RUN_FILTERS: { id: RunState | null; label: string }[] = [
+  { id: null, label: 'All' },
+  { id: 'success', label: 'Success' },
+  { id: 'failed', label: 'Failed' },
+  { id: 're_run', label: 'Queued' },
+  { id: 'skipped', label: 'Skipped' },
+]
+
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const [stats, setStats] = useState<Stats | null>(null)
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [period, setPeriod] = useState<StatsPeriodPreset>('last_24h')
-  const [loading, setLoading] = useState(true)
+  const [connectionLost, setConnectionLost] = useState(false)
+  const [runsExpanded, setRunsExpanded] = useState(false)
+  const [runsFilter, setRunsFilter] = useState<RunState | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    const cleanup = streamStats(period, (data) => {
-      if (cancelled) return
-      setStats(data)
-      setLoading(false)
-    })
+    const cleanup = streamStats(
+      period,
+      runsFilter,
+      (data) => {
+        if (cancelled) return
+        const receivedAt = Date.now()
+        setSnapshot((prev) => {
+          const sameList = prev !== null && prev.stats.recent_runs_state === data.recent_runs_state
+          const prevKeys = new Set(prev?.stats.recent_runs.map(runKey))
+          const newRunKeys = new Set(sameList ? data.recent_runs.map(runKey).filter((k) => !prevKeys.has(k)) : [])
+          return { stats: data, receivedAt, newRunKeys }
+        })
+        setConnectionLost(false)
+      },
+      // EventSource keeps retrying on its own; the next message clears this flag.
+      () => {
+        if (cancelled) return
+        setConnectionLost(true)
+      },
+    )
     return () => {
       cancelled = true
       cleanup()
     }
-  }, [period])
+  }, [period, runsFilter])
 
-  if (loading) {
-    return (
+  if (!snapshot) {
+    return connectionLost ? (
+      <div className="p-8 text-red-400 text-sm">Failed to load dashboard stats. Retrying…</div>
+    ) : (
       <div className="p-8 text-[var(--muted-foreground)] text-sm">Loading dashboard…</div>
     )
   }
 
-  if (!stats) {
-    return (
-      <div className="p-8 text-red-400 text-sm">Failed to load dashboard stats.</div>
-    )
-  }
+  const { stats, receivedAt, newRunKeys } = snapshot
 
   const rangeSubtitle = formatPeriodRange(stats.period)
   const staleness = stats.period.preset !== period
+  const runsStaleness = stats.recent_runs_state !== runsFilter
+
+  const renderRunRows = (runs: RecentRun[]) =>
+    runs.map((run) => (
+      <RecentRunRow
+        key={runKey(run)}
+        run={run}
+        now={receivedAt}
+        flash={newRunKeys.has(runKey(run))}
+      />
+    ))
   const emailsTitle = stats.period.preset === 'all' ? 'Total emails' : 'Emails in period'
 
   const runsSummaryTitle =
@@ -76,15 +128,14 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-xl font-semibold text-[var(--foreground)]">
             Dashboard
-            {staleness && (
+            {connectionLost ? (
+              <span className="ml-2 text-xs font-normal text-red-500 dark:text-red-400">Connection lost, retrying…</span>
+            ) : staleness && (
               <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">Updating…</span>
             )}
           </h1>
           {rangeSubtitle && (
-            <>
-              <p className="text-xs text-[var(--muted-foreground)] mt-1 tabular-nums">{rangeSubtitle}</p>
-              <p className="text-[10px] text-[var(--muted-foreground)]/80 mt-0.5">Times are UTC.</p>
-            </>
+            <p className="text-xs text-[var(--muted-foreground)] mt-1 tabular-nums">{rangeSubtitle}</p>
           )}
           {stats.period.preset === 'all' && (
             <p className="text-xs text-[var(--muted-foreground)] mt-1">Counts from the full history</p>
@@ -148,6 +199,72 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* Not period-scoped, so it only dims while a new run filter loads. */}
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-sm font-medium">Recent runs</CardTitle>
+          <div className="flex flex-wrap gap-1" role="tablist" aria-label="Run state filter">
+            {RUN_FILTERS.map(({ id, label }) => (
+              <button
+                key={label}
+                type="button"
+                role="tab"
+                aria-selected={runsFilter === id}
+                onClick={() => setRunsFilter(id)}
+                className={cn(
+                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors',
+                  runsFilter === id
+                    ? 'bg-slate-700 text-white dark:bg-slate-600'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent className={cn('transition-opacity', runsStaleness && 'opacity-60')}>
+          {stats.recent_runs.length === 0 ? (
+            <p className="text-[var(--muted-foreground)] text-sm">
+              {stats.recent_runs_state
+                ? `No ${RUN_FILTERS.find((f) => f.id === stats.recent_runs_state)?.label.toLowerCase()} runs.`
+                : 'No runs yet.'}
+            </p>
+          ) : (
+            <>
+              <ul className="divide-y divide-[var(--border)]">
+                {renderRunRows(stats.recent_runs.slice(0, RECENT_RUNS_COLLAPSED))}
+              </ul>
+              {/* Overflow rows stay mounted while collapsed so the height can animate:
+                  grid rows 0fr -> 1fr gives a height transition without measuring. */}
+              <div
+                className={cn(
+                  'grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none',
+                  runsExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+                )}
+              >
+                {/* Hidden rows shouldn't be tabbable or read out while collapsed. */}
+                <div className="overflow-hidden" inert={!runsExpanded}>
+                  <ul className="divide-y divide-[var(--border)] border-t border-[var(--border)]">
+                    {renderRunRows(stats.recent_runs.slice(RECENT_RUNS_COLLAPSED))}
+                  </ul>
+                </div>
+              </div>
+              {stats.recent_runs.length > RECENT_RUNS_COLLAPSED && (
+                <button
+                  type="button"
+                  onClick={() => setRunsExpanded((v) => !v)}
+                  className="mt-2 w-full flex items-center justify-center gap-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                >
+                  {runsExpanded ? 'Show less' : `Show more (${stats.recent_runs.length - RECENT_RUNS_COLLAPSED})`}
+                  <ChevronDownIcon className={cn('h-3.5 w-3.5', runsExpanded && 'rotate-180')} />
+                </button>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       <div
         className={cn(
           'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 transition-opacity',
@@ -187,8 +304,8 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            <InfoRow label="Success" value={stats.runs.success} />
-            <InfoRow label="Failed" value={stats.runs.failed} />
+            {/* Success/failed already have their own cards above. Running is a live count, not limited to the period. */}
+            <InfoRow label="Running now" value={stats.runs.running} />
             <InfoRow label="Skipped" value={stats.runs.skipped} />
             <InfoRow label="Re-run queued" value={stats.runs.re_run} />
           </CardContent>
@@ -243,6 +360,78 @@ function StatCard({ title, value, icon, valueClassName, subtitle, onClick }: Sta
         <p className="text-[11px] text-[var(--muted-foreground)] mt-2 leading-snug">{subtitle}</p>
       ) : null}
     </Card>
+  )
+}
+
+function timeAgo(iso: string | null, now: number): string {
+  if (!iso) return '—'
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return '—'
+  const secs = Math.max(0, Math.round((now - t) / 1000))
+  if (secs < 60) return `${secs}s ago`
+  const mins = Math.floor(secs / 60)
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
+interface RecentRunRowProps {
+  run: RecentRun
+  now: number
+  flash: boolean
+}
+
+const ROW_ICON_LINK =
+  'shrink-0 p-1 rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-slate-200 dark:hover:bg-slate-700'
+
+function RecentRunRow({ run, now, flash }: RecentRunRowProps) {
+  return (
+    <li
+      className={cn(
+        'flex items-center gap-3 py-2 px-2 -mx-2 rounded-md text-sm hover:bg-slate-100 dark:hover:bg-slate-800/60',
+        flash && 'run-flash',
+      )}
+    >
+      {/* A real link (not a click handler on the li) so it's keyboard-reachable; the icon links sit beside it. */}
+      <Link
+        to={`/logs?run_id=${run.id}`}
+        className="flex-1 min-w-0 flex items-center gap-3 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+        title="View logs for this run"
+      >
+        <span
+          className={cn(
+            'shrink-0 w-16 text-center text-[11px] font-semibold px-2 py-0.5 rounded',
+            RUN_STATE_BADGE[run.state],
+          )}
+        >
+          {run.state === 're_run' ? 'queued' : run.state}
+        </span>
+        <span className="shrink-0 max-w-[40%] truncate font-medium text-[var(--foreground)]">{run.workflow_name}</span>
+        <span className="flex-1 min-w-0 truncate text-[var(--muted-foreground)]">
+          {run.email_subject ?? (run.email_id == null ? 'email deleted' : '(no subject)')}
+        </span>
+        <span
+          className="shrink-0 text-xs tabular-nums text-[var(--muted-foreground)]"
+          title={run.created_at ? `Created ${new Date(run.created_at).toLocaleString()}` : undefined}
+        >
+          {timeAgo(run.created_at, now)}
+        </span>
+      </Link>
+      <span className="shrink-0 flex items-center">
+        {run.email_id != null ? (
+          <Link to={`/email/${run.email_id}`} className={ROW_ICON_LINK} title="Open email" aria-label="Open email">
+            <EnvelopeIcon className="h-4 w-4" />
+          </Link>
+        ) : (
+          // Keeps the workflow icon aligned across rows when the email was deleted.
+          <span className="w-6" />
+        )}
+        <Link to={`/workflow/${run.workflow_id}`} className={ROW_ICON_LINK} title="Open workflow" aria-label="Open workflow">
+          <WorkflowIcon size={16} />
+        </Link>
+      </span>
+    </li>
   )
 }
 
